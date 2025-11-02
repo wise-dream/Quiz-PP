@@ -179,6 +179,7 @@ export const useQuiz = () => {
             console.log('📝 [useQuiz] Answer received from:', event.userId);
             console.log('📝 [useQuiz] Answer:', event.answer);
             console.log('📝 [useQuiz] Team info:', event.teamId, event.teamName);
+            console.log('📝 [useQuiz] Full event object:', JSON.stringify(event, null, 2));
             
             // Update room state with answer
             if (state.room) {
@@ -190,18 +191,34 @@ export const useQuiz = () => {
               dispatch(setRoom(updatedRoom));
               
               // If it's a hardware button press, trigger modal show via custom event
-              if (event.teamId && event.teamName) {
-                const team = state.room.teams?.[event.teamId];
+              // Check both direct properties and nested data object
+              const teamId = event.teamId || (event.data as any)?.teamId;
+              const teamName = event.teamName || (event.data as any)?.teamName;
+              
+              console.log('📝 [useQuiz] Extracted teamId:', teamId, 'teamName:', teamName);
+              
+              if (teamId && teamName) {
+                const team = state.room.teams?.[teamId];
                 const teamColor = team?.color || '#3b82f6';
+                
+                console.log('📝 [useQuiz] Dispatching hardwareButtonPressed event:', {
+                  teamId,
+                  teamName,
+                  teamColor
+                });
                 
                 // Dispatch custom event for AdminPanel to handle
                 window.dispatchEvent(new CustomEvent('hardwareButtonPressed', {
                   detail: {
-                    teamId: event.teamId,
-                    teamName: event.teamName,
+                    teamId: teamId,
+                    teamName: teamName,
                     teamColor: teamColor
                   }
                 }));
+                
+                console.log('✅ [useQuiz] hardwareButtonPressed event dispatched');
+              } else {
+                console.warn('⚠️ [useQuiz] No teamId or teamName in answer_received event');
               }
             }
           } else if (event.type === 'show_answer') {

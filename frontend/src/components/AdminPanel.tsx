@@ -15,13 +15,26 @@ export const AdminPanel: React.FC = () => {
   // Listen for hardware button press events
   useEffect(() => {
     const handleHardwareButton = (event: CustomEvent) => {
+      console.log('🔔 [AdminPanel] hardwareButtonPressed event received:', event);
+      console.log('🔔 [AdminPanel] Event detail:', event.detail);
+      
       const { teamId, teamName, teamColor } = event.detail;
-      setAnswerTeam({ name: teamName, color: teamColor, teamId });
-      setShowAnswerModal(true);
+      
+      console.log('🔔 [AdminPanel] Extracted values:', { teamId, teamName, teamColor });
+      
+      if (teamId && teamName) {
+        setAnswerTeam({ name: teamName, color: teamColor || '#3b82f6', teamId });
+        setShowAnswerModal(true);
+        console.log('✅ [AdminPanel] Modal should now be visible');
+      } else {
+        console.warn('⚠️ [AdminPanel] Missing teamId or teamName in event detail');
+      }
     };
 
+    console.log('📝 [AdminPanel] Setting up hardwareButtonPressed event listener');
     window.addEventListener('hardwareButtonPressed', handleHardwareButton as EventListener);
     return () => {
+      console.log('🗑️ [AdminPanel] Removing hardwareButtonPressed event listener');
       window.removeEventListener('hardwareButtonPressed', handleHardwareButton as EventListener);
     };
   }, []);
