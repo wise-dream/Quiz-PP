@@ -179,7 +179,7 @@ func (h *StaticHandler) ServeStatic(w http.ResponseWriter, r *http.Request) {
 }
 
 // SetupRoutes configures all HTTP routes
-func SetupRoutes(wsHandler *WebSocketHandler, staticHandler *StaticHandler) *mux.Router {
+func SetupRoutes(wsHandler *WebSocketHandler, staticHandler *StaticHandler, buttonHandler *ButtonHandler) *mux.Router {
 	r := mux.NewRouter()
 
 	// CORS middleware
@@ -206,6 +206,16 @@ func SetupRoutes(wsHandler *WebSocketHandler, staticHandler *StaticHandler) *mux
 	// PowerPoint integration endpoints
 	r.HandleFunc("/api/activate-question", wsHandler.ActivateQuestion).Methods("POST")
 	r.HandleFunc("/api/deactivate-question", wsHandler.DeactivateQuestion).Methods("POST")
+
+	// Hardware button API endpoints
+	r.HandleFunc("/api/button/press", buttonHandler.PressButton).Methods("POST")
+	r.HandleFunc("/api/button/register", buttonHandler.RegisterButton).Methods("POST")
+	r.HandleFunc("/api/button/assign", buttonHandler.AssignButton).Methods("POST", "PUT")
+	r.HandleFunc("/api/button/unassign", buttonHandler.UnassignButton).Methods("POST")
+	r.HandleFunc("/api/button/list", buttonHandler.ListButtons).Methods("GET")
+	r.HandleFunc("/api/button/room/{roomCode}", buttonHandler.GetButtonsByRoom).Methods("GET")
+	r.HandleFunc("/api/button/{macAddress}", buttonHandler.GetButton).Methods("GET")
+	r.HandleFunc("/api/button/{macAddress}", buttonHandler.DeleteButton).Methods("DELETE")
 
 	// Health check endpoint
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

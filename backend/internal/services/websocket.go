@@ -19,7 +19,13 @@ import (
 
 // WebSocketService handles WebSocket connections and events
 type WebSocketService struct {
-	hub *models.Hub
+	hub           *models.Hub
+	buttonService *ButtonService
+}
+
+// SetButtonService sets the button service for hardware button support
+func (ws *WebSocketService) SetButtonService(bs *ButtonService) {
+	ws.buttonService = bs
 }
 
 // NewWebSocketService creates a new WebSocket service
@@ -851,4 +857,55 @@ func (ws *WebSocketService) StartRoomCleanup() {
 			}
 		}
 	}()
+}
+
+// HandleButtonPress processes a button press from a hardware button
+// This method can be called from REST API handlers
+func (ws *WebSocketService) HandleButtonPress(roomCode, teamID string) error {
+	ws.hub.Mu.RLock()
+	room, exists := ws.hub.Rooms[roomCode]
+	ws.hub.Mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("room not found: %s", roomCode)
+	}
+
+	room.Mu.Lock()
+	defer room.Mu.Unlock()
+
+	// Check if question is active
+	if !room.QuestionActive {
+		return fmt.Errorf("question not active in room %s", roomCode)
+	}
+
+	// Check if someone already answered
+	if room.FirstAnswerer != "" {
+		return fmt.Errorf("someone already answered in room %s", roomCode)
+	}
+
+	// Find team to get team name
+	team, exists := room.Teams[teamID]
+	if !exists {
+		return fmt.Errorf("team not found: %s", teamID)
+	}
+
+	// Set first answerer - use team ID as identifier for hardware buttons
+	room.FirstAnswerer = fmt.Sprintf("team_%s", teamID)
+	room.QuestionActive = false // Stop accepting more answers
+
+	log.Printf("First answer received from hardware button - Team: %s (%s) in room %s", team.Name, teamID, roomCode)
+
+	// Broadcast answer received event
+	answerEvent := models.Event{
+		Type:     models.EventAnswerReceived,
+		UserID:   room.FirstAnswerer,
+		TeamID:   teamID,
+		TeamName: team.Name,
+		Answer:   "BUTTON_PRESS",
+	}
+	ws.broadcastToRoom(room, answerEvent)
+
+	ws.broadcastRoomState(room)
+
+	return nil
 }

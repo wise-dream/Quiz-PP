@@ -10,97 +10,265 @@
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <style>
     html,body {margin:0;padding:12px;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial}
-    table {border-collapse:collapse;width:100%}
-    th,td {border:1px solid #ddd;padding:6px 8px}
-    thead th {position:sticky;top:0;background:#f5f5f5}
-    .first {font-weight:600;background:#e8f5e8}
-    .fs {color:#c00}
+    .controls {margin-bottom:16px;padding:12px;background:#f8f9fa;border-radius:6px;border:1px solid #dee2e6}
+    .controls input {padding:6px 8px;margin:0 4px;border:1px solid #ced4da;border-radius:4px}
+    .controls button {padding:6px 12px;margin:0 4px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer}
+    .controls button:hover {background:#0056b3}
+    .banner {margin:8px 0;padding:8px;border-radius:6px;background:#e8f5ff;border-left:4px solid #0d6efd}
     .status {margin-bottom:8px;padding:4px 8px;border-radius:4px}
     .status.connected {background:#d4edda;color:#155724}
     .status.disconnected {background:#f8d7da;color:#721c24}
     .status.connecting {background:#fff3cd;color:#856404}
+    .teams-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px}
+    .team-card {padding:12px;border-radius:6px;border:2px solid #dee2e6;cursor:pointer;transition:all 0.2s}
+    .team-card:hover {border-color:#007bff;box-shadow:0 2px 4px rgba(0,123,255,0.2)}
+    .team-card.active {border-color:#28a745;background:#f8fff9}
+    .team-card.answering {background:#d4edda;border-color:#28a745;animation:pulse 1s infinite}
+    .team-name {font-weight:600;margin-bottom:4px}
+    .team-score {font-size:18px;font-weight:bold;color:#007bff}
+    .team-players {font-size:12px;color:#6c757d;margin-top:4px}
+    .modal {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center}
+    .modal-content {background:white;border-radius:8px;padding:0;max-width:400px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3)}
+    .modal-header {padding:20px;border-bottom:1px solid #dee2e6;display:flex;justify-content:space-between;align-items:center}
+    .modal-header h3 {margin:0;color:#333}
+    .close-btn {background:none;border:none;font-size:24px;cursor:pointer;color:#999;padding:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center}
+    .close-btn:hover {color:#333}
+    .modal-body {padding:20px;text-align:center}
+    .answering-team {font-size:24px;font-weight:bold;padding:20px;border-radius:6px;background:#f8f9fa}
+    @keyframes pulse {0%,100%{opacity:1}50%{opacity:0.7}}
+    .hidden {display:none}
   </style>
 </head>
 <body>
-  <div id="status" class="status connecting">Connecting…</div>
-  <table id="tbl">
-    <thead><tr><th>#</th><th>Игрок</th><th>Кнопка</th><th>Δt (мс)</th><th>Фальстарт</th><th>Всего</th></tr></thead>
-    <tbody></tbody>
-  </table>
+  <div class="controls">
+    <label>Номер комнаты:</label>
+    <input id="room-input" type="text" placeholder="Введите код комнаты" value="">
+    <button id="connect-btn">Подключиться</button>
+    <button id="disconnect-btn" style="background:#dc3545">Отключиться</button>
+  </div>
+  
+  <div id="status" class="status connecting">Введите номер комнаты и нажмите "Подключиться"</div>
+  
+  <div id="teams-section" class="hidden">
+    <h3>Команды</h3>
+    <div id="teams-grid" class="teams-grid"></div>
+  </div>
+  
+  <div id="banner" class="banner hidden">Первой нажала команда: <strong id="first-team">—</strong></div>
+  
+  <!-- Modal for team answer -->
+  <div id="answer-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Отвечает команда</h3>
+        <button id="close-modal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="answering-team" class="answering-team"></div>
+      </div>
+    </div>
+  </div>
 
 <script>
 (() => {
-  const room = new URLSearchParams(location.search).get('room') || 'R1';
-  const wsUrl = `ws://localhost:8080/ws?room=${encodeURIComponent(room)}&role=viewer`;
-  let ws, state = { phase: 'lobby', enableAt: 0, players: [] };
+  let room = '';
+  let ws = null;
+  let state = { phase: 'lobby', enableAt: 0, players: {}, teams: {} };
 
+  const $roomInput = document.getElementById('room-input');
+  const $connectBtn = document.getElementById('connect-btn');
+  const $disconnectBtn = document.getElementById('disconnect-btn');
   const $status = document.getElementById('status');
-  const $tbody  = document.querySelector('#tbl tbody');
+  const $teamsSection = document.getElementById('teams-section');
+  const $teamsGrid = document.getElementById('teams-grid');
+  const $banner = document.getElementById('banner');
+  const $firstTeam = document.getElementById('first-team');
+  const $answerModal = document.getElementById('answer-modal');
+  const $answeringTeam = document.getElementById('answering-team');
+  const $closeModal = document.getElementById('close-modal');
+
+  // Initialize room from URL parameter
+  const urlParams = new URLSearchParams(location.search);
+  const urlRoom = urlParams.get('room');
+  if (urlRoom) {
+    $roomInput.value = urlRoom;
+    room = urlRoom;
+  }
 
   function connect() {
+    room = $roomInput.value.trim();
+    if (!room) {
+      $status.textContent = 'Введите номер комнаты';
+      $status.className = 'status disconnected';
+      return;
+    }
+
+    const wsUrl = `wss://wise-dream.ru/quiz/ws?room=${encodeURIComponent(room)}&role=viewer`;
+    
+    if (ws) {
+      ws.close();
+    }
+    
     ws = new WebSocket(wsUrl);
     ws.onopen = () => { 
-      $status.textContent = 'Connected'; 
+      $status.textContent = `Подключено к комнате: ${room}`; 
       $status.className = 'status connected';
+      $teamsSection.classList.remove('hidden');
     };
     ws.onclose = () => { 
-      $status.textContent = 'Disconnected, retry…'; 
+      $status.textContent = 'Отключено, нажмите "Подключиться" для повторного подключения'; 
       $status.className = 'status disconnected';
-      setTimeout(connect, 1000); 
     };
     ws.onerror = () => { 
-      $status.textContent = 'Error (see console)'; 
+      $status.textContent = 'Ошибка подключения (см. консоль)'; 
       $status.className = 'status disconnected';
     };
     ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === 'state') { 
-        state = msg.data; 
-        render(); 
-      }
-      if (msg.type === 'click') { 
-        applyClick(msg); 
-        render(); 
+      try {
+        const messages = ev.data.trim().split('\n').filter(msg => msg.trim());
+        
+        for (const messageText of messages) {
+          const msg = JSON.parse(messageText);
+          
+          if (msg.type === 'state') { 
+            state = { ...state, ...msg.data };
+            renderTeams();
+          }
+          if (msg.type === 'click') { 
+            applyClick(msg); 
+            renderTeams();
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+        console.error('Raw message:', ev.data);
       }
     };
   }
 
+  function disconnect() {
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+    $status.textContent = 'Отключено';
+    $status.className = 'status disconnected';
+    $teamsSection.classList.add('hidden');
+  }
+
+  function pickTeamName(p) {
+    if (!p) return '';
+    if (p.teamName) return p.teamName;
+    const t = (state.teams && p.teamId) ? state.teams[p.teamId] : null;
+    return t?.name || '';
+  }
+
   function applyClick(ev) {
-    const p = state.players[ev.userId];
+    const p = state.players?.[ev.userId];
     if (!p) return;
-    
+
     const now = Date.now();
-    const enableTime = new Date(state.enableAt).getTime();
+    const enableTime = new Date(state.enableAt || 0).getTime();
     const deltaMs = now - enableTime;
-    const isFalseStart = state.phase !== 'started' || now < enableTime;
-    
+    const isFalseStart = state.phase !== 'active' || now < enableTime;
+
     p.lastDeltaMs = isFalseStart ? null : deltaMs;
     p.falseStarts = (p.falseStarts || 0) + (isFalseStart ? 1 : 0);
     p.clickCount = (p.clickCount || 0) + (isFalseStart ? 0 : 1);
+
+    // если это первый валидный клик в текущем «раунде» — покажем баннер
+    if (!isFalseStart && typeof p.lastDeltaMs === 'number') {
+      const best = bestPlayer();
+      if (best && best.userId === ev.userId) {
+        const teamName = pickTeamName(best);
+        $firstTeam.textContent = teamName || (best.name || best.userId);
+        $banner.classList.remove('hidden');
+      }
+    }
   }
 
-  function render() {
-    const players = Object.values(state.players || {});
-    const rows = players
-      .filter(p => p.connected)
-      .sort((a,b) => {
-        const aTime = a.lastDeltaMs ?? 9e9;
-        const bTime = b.lastDeltaMs ?? 9e9;
-        return aTime - bTime;
-      })
-      .map((p,i) => `
-        <tr class="${i===0 && (p.lastDeltaMs ?? 9e9) < 9e9 ? 'first' : ''}">
-          <td>${i+1}</td>
-          <td>${p.name || p.userId}</td>
-          <td>${p.buttonId || ''}</td>
-          <td>${p.lastDeltaMs ?? ''}</td>
-          <td class="${p.lastDeltaMs==null && p.falseStarts>0 ? 'fs' : ''}">${p.falseStarts || 0}</td>
-          <td>${p.clickCount || 0}</td>
-        </tr>`);
-    $tbody.innerHTML = rows.join('');
+  function bestPlayer() {
+    const players = Object.values(state.players || {}).filter(p => p.connected);
+    if (players.length === 0) return null;
+    let best = null, bestTime = Number.POSITIVE_INFINITY;
+    for (const p of players) {
+      const t = (p.lastDeltaMs ?? Number.POSITIVE_INFINITY);
+      if (t < bestTime) { bestTime = t; best = p; }
+    }
+    return isFinite(bestTime) ? best : null;
   }
 
-  Office.onReady(() => connect());
+  function renderTeams() {
+    const teams = Object.values(state.teams || {});
+    if (teams.length === 0) {
+      $teamsGrid.innerHTML = '<p>Команды не созданы</p>';
+      return;
+    }
+
+    // Sort teams by score (descending)
+    teams.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    const teamCards = teams.map((team, index) => {
+      const players = Object.values(state.players || {})
+        .filter(p => team.players.includes(p.userId || p.id))
+        .map(p => p.name || p.userId);
+      
+      const isAnswering = state.firstAnswerer && team.players.includes(state.firstAnswerer);
+      
+      return `
+        <div class="team-card ${isAnswering ? 'answering' : ''}" data-team-id="${team.id}" data-team-name="${team.name}">
+          <div class="team-name" style="color: ${team.color}">${team.name}</div>
+          <div class="team-score">${team.score || 0} очков</div>
+          <div class="team-players">Игроки: ${players.join(', ') || 'Нет игроков'}</div>
+        </div>
+      `;
+    });
+
+    $teamsGrid.innerHTML = teamCards.join('');
+    
+    // Add click handlers
+    $teamsGrid.querySelectorAll('.team-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const teamName = card.dataset.teamName;
+        showAnswerModal(teamName);
+      });
+    });
+  }
+
+  function showAnswerModal(teamName) {
+    $answeringTeam.textContent = teamName;
+    $answerModal.classList.remove('hidden');
+  }
+
+  function hideAnswerModal() {
+    $answerModal.classList.add('hidden');
+  }
+
+  // Event listeners
+  $connectBtn.addEventListener('click', connect);
+  $disconnectBtn.addEventListener('click', disconnect);
+  $closeModal.addEventListener('click', hideAnswerModal);
+  $roomInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      connect();
+    }
+  });
+
+  // Close modal when clicking outside
+  $answerModal.addEventListener('click', (e) => {
+    if (e.target === $answerModal) {
+      hideAnswerModal();
+    }
+  });
+
+  // Auto-connect if room is provided in URL
+  if (urlRoom) {
+    connect();
+  }
+
+  Office.onReady(() => {
+    console.log('Office.js ready');
+  });
 })();
 </script>
 </body>

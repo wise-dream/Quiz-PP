@@ -393,7 +393,11 @@
           } else if (msg.type === 'state') {
             updatePhaseInfo(msg.data);
           } else if (msg.type === 'answer_received') {
-            showAnswerModal(msg.data);
+            // For answer_received, the data is in the message itself, not in msg.data
+            showAnswerModal({
+              userId: msg.userId,
+              answer: msg.answer
+            });
           } else if (msg.type === 'team_created') {
             console.log('Team created:', msg.data);
             updateStatus('Команда создана!', 'connected');
@@ -401,6 +405,9 @@
             console.log('Player joined:', msg.data);
           } else if (msg.type === 'team_joined') {
             console.log('Player joined team:', msg.data);
+          } else if (msg.type === 'phase_changed') {
+            console.log('Phase changed to:', msg.phase);
+            updateStatus(`Фаза изменена на: ${msg.phase}`, 'connected');
           } else {
             console.log('Unknown message type:', msg.type);
           }
@@ -616,18 +623,50 @@
   }
 
   function showAnswerModal(answerData) {
-    // Find player name by userId from current room state
+    // Find player name and team by userId from current room state
     let playerName = 'Неизвестно';
+    let teamName = '';
+    let teamColor = '';
+    
     if (currentRoomState && currentRoomState.players && answerData.userId) {
       const player = currentRoomState.players[answerData.userId];
       if (player) {
         playerName = player.name || answerData.userId;
+        
+        // Find team for this player
+        if (currentRoomState.teams) {
+          for (const [teamId, team] of Object.entries(currentRoomState.teams)) {
+            if (team.players.includes(answerData.userId)) {
+              teamName = team.name;
+              teamColor = team.color;
+              break;
+            }
+          }
+        }
       }
     }
     
+    // Update modal content
     $firstAnswerer.textContent = playerName;
     $playerAnswer.textContent = answerData.answer || 'Нет ответа';
     $pointsInput.value = 10; // Значение по умолчанию
+    
+    // Add team info if available
+    if (teamName) {
+      const teamInfo = document.createElement('div');
+      teamInfo.style.cssText = 'margin-top: 8px; padding: 4px 8px; background: ' + teamColor + '; color: white; border-radius: 4px; font-size: 12px;';
+      teamInfo.textContent = 'Команда: ' + teamName;
+      
+      // Remove existing team info if any
+      const existingTeamInfo = $answerModal.querySelector('.team-info');
+      if (existingTeamInfo) {
+        existingTeamInfo.remove();
+      }
+      
+      teamInfo.className = 'team-info';
+      $firstAnswerer.parentNode.insertBefore(teamInfo, $firstAnswerer.nextSibling);
+    }
+    
     $answerModal.style.display = 'block';
   }
 

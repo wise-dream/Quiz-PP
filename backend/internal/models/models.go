@@ -139,3 +139,19 @@ type Hub struct {
 	Broadcast  chan []byte
 	Mu         sync.RWMutex
 }
+
+// HardwareButton represents a physical button device
+type HardwareButton struct {
+	ID          string    `json:"id"`          // Unique button ID (can be button number or UUID)
+	MACAddress  string    `json:"macAddress"`  // MAC address of the device
+	ButtonID    string    `json:"buttonId"`    // Button number/code in the device firmware
+	Name        string    `json:"name"`        // Human-readable name (optional)
+	RoomCode    string    `json:"roomCode"`    // Room this button is assigned to
+	TeamID      string    `json:"teamId"`      // Team ID this button is assigned to (empty if unassigned)
+	TeamName    string    `json:"teamName"`    // Team name (cached for convenience)
+	IsActive    bool      `json:"isActive"`    // Whether button is active/enabled
+	LastPress   time.Time `json:"lastPress"`   // Last time button was pressed
+	PressCount  int       `json:"pressCount"`  // Total number of presses
+	CreatedAt   time.Time `json:"createdAt"`   // When button was registered
+	UpdatedAt   time.Time `json:"updatedAt"`  // Last update time
+}

@@ -15,8 +15,8 @@
   </Hosts>
   <DefaultSettings>
     <SourceLocation DefaultValue="https://wise-dream.ru/quiz/addin/content.html"/>
-    <RequestedWidth>960</RequestedWidth>
-    <RequestedHeight>540</RequestedHeight>
+    <RequestedWidth>320</RequestedWidth>
+    <RequestedHeight>600</RequestedHeight>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>

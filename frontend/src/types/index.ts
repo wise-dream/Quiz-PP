@@ -116,3 +116,18 @@ export interface QuizState {
   isAdmin: boolean;
   error: string | null;
 }
+
+export interface HardwareButton {
+  id: string;
+  macAddress: string;
+  buttonId: string;
+  name: string;
+  roomCode: string;
+  teamId: string;
+  teamName: string;
+  isActive: boolean;
+  lastPress: string;
+  pressCount: number;
+  createdAt: string;
+  updatedAt: string;
+}

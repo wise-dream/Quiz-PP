@@ -2,6 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useQuiz } from '../hooks/useQuizRedux';
 import { teamColors, getTeamColor, cn } from '../utils';
 import { Plus, Users, Play, Square, Settings, LogOut } from 'lucide-react';
+import { ButtonManagement } from './ButtonManagement';
 
 export const AdminPanel: React.FC = () => {
   const { room, user, createTeam, setGamePhase, error, isConnected, leaveRoom } = useQuiz();
@@ -270,6 +271,14 @@ export const AdminPanel: React.FC = () => {
               {playerList}
             </div>
           </div>
+        </div>
+
+        {/* Button Management - Full width */}
+        <div className="mt-6">
+          <ButtonManagement 
+            roomCode={room.code} 
+            teams={room.teams || {}}
+          />
         </div>
       </div>
     </div>

@@ -4,8 +4,10 @@ import (
 	"crypto/tls"
 	"log"
 	"net/http"
+	"os"
 
 	"powerpoint-quiz/internal/config"
+	"powerpoint-quiz/internal/db"
 	"powerpoint-quiz/internal/handlers"
 	"powerpoint-quiz/internal/services"
 )
@@ -14,16 +16,29 @@ func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
 
+	// Initialize database
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "./data/quiz.db" // Default path
+	}
+	if err := db.InitDatabase(dbPath); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer db.Close()
+
 	// Initialize services
 	wsService := services.NewWebSocketService()
+	buttonService := services.NewButtonService(db.DB)
+	wsService.SetButtonService(buttonService)
 	go wsService.Run()
 
 	// Initialize handlers
 	wsHandler := handlers.NewWebSocketHandler(wsService)
 	staticHandler := handlers.NewStaticHandler()
+	buttonHandler := handlers.NewButtonHandler(wsService, buttonService)
 
 	// Setup routes
-	router := handlers.SetupRoutes(wsHandler, staticHandler)
+	router := handlers.SetupRoutes(wsHandler, staticHandler, buttonHandler)
 
 	// Configure server
 	server := &http.Server{
