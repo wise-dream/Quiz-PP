@@ -324,9 +324,29 @@ export const ButtonManagement: React.FC<ButtonManagementProps> = ({ roomCode, te
                         <Unlink className="w-4 h-4" />
                       </button>
                     ) : button.roomCode && button.roomCode !== roomCode ? (
-                      <span className="text-xs text-gray-500 px-2 py-1">
-                        В другой комнате
-                      </span>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="text-xs text-gray-500 px-2 py-1 whitespace-nowrap">
+                          Комната: {button.roomCode}
+                        </span>
+                        <select
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleAssignButton(button.macAddress, e.target.value);
+                            }
+                          }}
+                          disabled={assigningButton === button.macAddress || Object.keys(teams).length === 0}
+                          className="text-sm px-2 py-1 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:opacity-50 bg-blue-50"
+                          title="Переназначить на команду в текущей комнате"
+                        >
+                          <option value="">Переназначить...</option>
+                          {Object.values(teams).map((team) => (
+                            <option key={team.id} value={team.id}>
+                              {team.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     ) : (
                       <select
                         value=""
