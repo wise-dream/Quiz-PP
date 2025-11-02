@@ -40,14 +40,14 @@ PowerPoint Add-in теперь включает встроенные функц�
 
 ### HTTP API Endpoints
 ```
-POST https://wise-dream.ru/api/activate-question
+POST https://wise-dream.ru/quiz/api/activate-question
 Content-Type: application/json
 {
   "roomCode": "HEW9",
   "duration": 30
 }
 
-POST https://wise-dream.ru/api/deactivate-question
+POST https://wise-dream.ru/quiz/api/deactivate-question
 Content-Type: application/json
 {
   "roomCode": "HEW9"

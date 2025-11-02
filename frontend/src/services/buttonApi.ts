@@ -43,7 +43,7 @@ async function apiRequest<T>(
 export const buttonApi = {
   // Register a new button
   registerButton: async (macAddress: string, buttonId: string = '1', name: string = ''): Promise<HardwareButton> => {
-    return apiRequest<HardwareButton>('/api/button/register', {
+    return apiRequest<HardwareButton>('/quiz/api/button/register', {
       method: 'POST',
       body: JSON.stringify({ macAddress, buttonId, name }),
     });
@@ -51,22 +51,22 @@ export const buttonApi = {
 
   // Get all buttons
   getAllButtons: async (): Promise<HardwareButton[]> => {
-    return apiRequest<HardwareButton[]>('/api/button/list');
+    return apiRequest<HardwareButton[]>('/quiz/api/button/list');
   },
 
   // Get buttons by room
   getButtonsByRoom: async (roomCode: string): Promise<HardwareButton[]> => {
-    return apiRequest<HardwareButton[]>(`/api/button/room/${roomCode}`);
+    return apiRequest<HardwareButton[]>(`/quiz/api/button/room/${roomCode}`);
   },
 
   // Get button by MAC address
   getButton: async (macAddress: string): Promise<HardwareButton> => {
-    return apiRequest<HardwareButton>(`/api/button/${encodeURIComponent(macAddress)}`);
+    return apiRequest<HardwareButton>(`/quiz/api/button/${encodeURIComponent(macAddress)}`);
   },
 
   // Assign button to team
   assignButton: async (macAddress: string, roomCode: string, teamId: string): Promise<HardwareButton> => {
-    return apiRequest<HardwareButton>('/api/button/assign', {
+    return apiRequest<HardwareButton>('/quiz/api/button/assign', {
       method: 'POST',
       body: JSON.stringify({ macAddress, roomCode, teamId }),
     });
@@ -74,7 +74,7 @@ export const buttonApi = {
 
   // Unassign button from team
   unassignButton: async (macAddress: string): Promise<void> => {
-    await apiRequest<void>('/api/button/unassign', {
+    await apiRequest<void>('/quiz/api/button/unassign', {
       method: 'POST',
       body: JSON.stringify({ macAddress }),
     });
@@ -82,14 +82,14 @@ export const buttonApi = {
 
   // Delete button
   deleteButton: async (macAddress: string): Promise<void> => {
-    await apiRequest<void>(`/api/button/${encodeURIComponent(macAddress)}`, {
+    await apiRequest<void>(`/quiz/api/button/${encodeURIComponent(macAddress)}`, {
       method: 'DELETE',
     });
   },
 
   // Press button (for hardware buttons themselves)
   pressButton: async (macAddress: string, buttonId?: string): Promise<{ success: boolean; message: string; processed: boolean }> => {
-    return apiRequest<{ success: boolean; message: string; processed: boolean }>('/api/button/press', {
+    return apiRequest<{ success: boolean; message: string; processed: boolean }>('/quiz/api/button/press', {
       method: 'POST',
       body: JSON.stringify({ macAddress, buttonId }),
     });
