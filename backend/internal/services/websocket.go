@@ -953,6 +953,7 @@ func (ws *WebSocketService) HandleButtonPress(roomCode, teamID string) error {
 		UserID:   room.FirstAnswerer,
 		TeamID:   teamID,
 		TeamName: team.Name,
+		TeamColor: team.Color,
 		Answer:   "BUTTON_PRESS",
 	}
 	ws.broadcastToRoom(room, answerEvent)

@@ -20,6 +20,13 @@ export const useQuiz = () => {
   const dispatch = useAppDispatch();
   const state = useAppSelector((state) => state.quiz);
   const wsServiceRef = useRef<WebSocketService | null>(null);
+  // Use ref to store latest state for use in message handler closures
+  const stateRef = useRef(state);
+  
+  // Keep stateRef up to date
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
   
   console.log('🔄 [useQuiz] Current Redux state:', state);
 
@@ -81,6 +88,7 @@ export const useQuiz = () => {
         if (message.type === 'message' && message.data) {
           const event = message.data as Event;
           console.log('📦 [useQuiz] Processing event:', event);
+          console.log('📦 [useQuiz] Event type:', event.type);
           
           if (event.type === 'state') {
             const room = event.data as any;
@@ -176,50 +184,105 @@ export const useQuiz = () => {
               dispatch(setRoom(updatedRoom));
             }
           } else if (event.type === 'answer_received') {
+            console.log('📝 [useQuiz] ========== ANSWER_RECEIVED EVENT ==========');
             console.log('📝 [useQuiz] Answer received from:', event.userId);
             console.log('📝 [useQuiz] Answer:', event.answer);
-            console.log('📝 [useQuiz] Team info:', event.teamId, event.teamName);
+            console.log('📝 [useQuiz] Team info from event:', event.teamId, event.teamName);
+            console.log('📝 [useQuiz] Team color from event:', (event as any).teamColor);
             console.log('📝 [useQuiz] Full event object:', JSON.stringify(event, null, 2));
+            console.log('📝 [useQuiz] Event keys:', Object.keys(event));
             
-            // Update room state with answer
-            if (state.room) {
+            // Get current state from ref to ensure we have the latest
+            const currentState = stateRef.current;
+            
+            // Update room state with answer first
+            if (currentState.room) {
               const updatedRoom = { 
-                ...state.room, 
+                ...currentState.room, 
                 questionActive: false,
                 firstAnswerer: event.userId || event.teamId || ''
               };
               dispatch(setRoom(updatedRoom));
               
               // If it's a hardware button press, trigger modal show via custom event
-              // Check both direct properties and nested data object
-              const teamId = event.teamId || (event.data as any)?.teamId;
-              const teamName = event.teamName || (event.data as any)?.teamName;
+              // Check direct properties first (they should be there from backend)
+              let teamId = event.teamId;
+              let teamName = event.teamName;
+              let teamColor = (event as any).teamColor;
               
-              console.log('📝 [useQuiz] Extracted teamId:', teamId, 'teamName:', teamName);
+              console.log('📝 [useQuiz] Extracted from event directly:', { teamId, teamName, teamColor });
+              
+              // If not found in direct properties, check nested data
+              if (!teamId || !teamName) {
+                console.log('⚠️ [useQuiz] teamId or teamName not in direct properties, checking event.data');
+                if (event.data) {
+                  const dataTeamId = (event.data as any)?.teamId;
+                  const dataTeamName = (event.data as any)?.teamName;
+                  const dataTeamColor = (event.data as any)?.teamColor;
+                  console.log('📝 [useQuiz] Values from event.data:', { dataTeamId, dataTeamName, dataTeamColor });
+                  
+                  if (dataTeamId) teamId = dataTeamId;
+                  if (dataTeamName) teamName = dataTeamName;
+                  if (dataTeamColor) teamColor = dataTeamColor;
+                }
+              }
+              
+              console.log('📝 [useQuiz] Final extracted values:', { teamId, teamName, teamColor });
+              console.log('📝 [useQuiz] Current room teams:', currentState.room.teams);
               
               if (teamId && teamName) {
-                const team = state.room.teams?.[teamId];
-                const teamColor = team?.color || '#3b82f6';
+                // Try to get team color from current room state (use updated room with teams)
+                const team = updatedRoom.teams?.[teamId];
+                
+                // If team not found in current state, try to get from event or use default
+                if (!teamColor && team) {
+                  teamColor = team.color;
+                  console.log('📝 [useQuiz] Using team color from room state:', teamColor);
+                } else if (!teamColor) {
+                  teamColor = '#3b82f6';
+                  console.log('⚠️ [useQuiz] Team not found in room state, using default color');
+                }
                 
                 console.log('📝 [useQuiz] Dispatching hardwareButtonPressed event:', {
                   teamId,
                   teamName,
-                  teamColor
+                  teamColor,
+                  foundTeam: !!team
                 });
                 
                 // Dispatch custom event for AdminPanel to handle
-                window.dispatchEvent(new CustomEvent('hardwareButtonPressed', {
+                const customEvent = new CustomEvent('hardwareButtonPressed', {
                   detail: {
                     teamId: teamId,
                     teamName: teamName,
                     teamColor: teamColor
                   }
-                }));
+                });
+                
+                console.log('📤 [useQuiz] About to dispatch hardwareButtonPressed event:', {
+                  detail: customEvent.detail,
+                  eventType: customEvent.type
+                });
+                
+                window.dispatchEvent(customEvent);
                 
                 console.log('✅ [useQuiz] hardwareButtonPressed event dispatched');
+                
+                // Force a re-render by checking listeners
+                setTimeout(() => {
+                  console.log('🔍 [useQuiz] Checking if event was received (delayed check)');
+                }, 100);
               } else {
                 console.warn('⚠️ [useQuiz] No teamId or teamName in answer_received event');
+                console.warn('⚠️ [useQuiz] Event structure:', {
+                  hasTeamId: !!event.teamId,
+                  hasTeamName: !!event.teamName,
+                  eventKeys: Object.keys(event),
+                  dataKeys: event.data ? Object.keys(event.data as any) : []
+                });
               }
+            } else {
+              console.warn('⚠️ [useQuiz] No room in state when answer_received event arrived');
             }
           } else if (event.type === 'show_answer') {
             console.log('👁️ [useQuiz] Showing answer');

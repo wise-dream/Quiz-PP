@@ -14,30 +14,47 @@ export const AdminPanel: React.FC = () => {
 
   // Listen for hardware button press events
   useEffect(() => {
-    const handleHardwareButton = (event: CustomEvent) => {
+    const handleHardwareButton = (event: Event) => {
       console.log('🔔 [AdminPanel] hardwareButtonPressed event received:', event);
-      console.log('🔔 [AdminPanel] Event detail:', event.detail);
+      console.log('🔔 [AdminPanel] Event type:', event.type);
+      console.log('🔔 [AdminPanel] Event detail:', (event as CustomEvent).detail);
       
-      const { teamId, teamName, teamColor } = event.detail;
+      // Handle both CustomEvent and regular Event
+      const detail = (event as CustomEvent).detail || {};
+      const { teamId, teamName, teamColor } = detail;
       
       console.log('🔔 [AdminPanel] Extracted values:', { teamId, teamName, teamColor });
       
       if (teamId && teamName) {
-        setAnswerTeam({ name: teamName, color: teamColor || '#3b82f6', teamId });
+        const teamData = { name: teamName, color: teamColor || '#3b82f6', teamId };
+        console.log('🔔 [AdminPanel] Setting answerTeam to:', teamData);
+        setAnswerTeam(teamData);
+        console.log('🔔 [AdminPanel] Setting showAnswerModal to true');
         setShowAnswerModal(true);
         console.log('✅ [AdminPanel] Modal should now be visible');
       } else {
-        console.warn('⚠️ [AdminPanel] Missing teamId or teamName in event detail');
+        console.warn('⚠️ [AdminPanel] Missing teamId or teamName in event detail:', detail);
       }
     };
 
-    console.log('📝 [AdminPanel] Setting up hardwareButtonPressed event listener');
-    window.addEventListener('hardwareButtonPressed', handleHardwareButton as EventListener);
-    return () => {
-      console.log('🗑️ [AdminPanel] Removing hardwareButtonPressed event listener');
-      window.removeEventListener('hardwareButtonPressed', handleHardwareButton as EventListener);
-    };
-  }, []);
+      console.log('📝 [AdminPanel] Setting up hardwareButtonPressed event listener');
+      const listener = handleHardwareButton as EventListener;
+      window.addEventListener('hardwareButtonPressed', listener);
+      
+      // Test: Listen for any window events to debug
+      const debugHandler = (e: Event) => {
+        if ((e as CustomEvent).type === 'hardwareButtonPressed') {
+          console.log('🐛 [AdminPanel DEBUG] CustomEvent detected:', e);
+        }
+      };
+      window.addEventListener('hardwareButtonPressed', debugHandler);
+      
+      return () => {
+        console.log('🗑️ [AdminPanel] Removing hardwareButtonPressed event listener');
+        window.removeEventListener('hardwareButtonPressed', listener);
+        window.removeEventListener('hardwareButtonPressed', debugHandler);
+      };
+  }, []); // Empty deps - we want this listener to persist
 
   const closeAnswerModal = useCallback(() => {
     setShowAnswerModal(false);
