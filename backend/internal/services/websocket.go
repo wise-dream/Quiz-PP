@@ -113,13 +113,30 @@ func (ws *WebSocketService) HandleEvent(client *models.Client, event models.Even
 
 	// Get or create room
 	room, exists := ws.hub.Rooms[roomID]
+	
+	// If not found by ID, try to find by Code (rooms are stored by Code)
+	if !exists && roomID != "" {
+		for _, r := range ws.hub.Rooms {
+			if r.Code == roomID {
+				room = r
+				exists = true
+				log.Printf("Room found by Code: %s (ID: %s)", r.Code, r.ID)
+				break
+			}
+		}
+	}
+	
 	if !exists && event.Type != models.EventCreateRoom {
 		// For non-create-room events, check if room exists
+		if roomID != "" {
+			log.Printf("Room not found for event %s: roomID=%s, client.RoomID=%s", event.Type, roomID, client.RoomID)
+		}
 		room = nil
 	} else if !exists {
 		// Only create room for create_room events
 		room = &models.Room{
 			ID:        roomID,
+			Code:      roomID, // Set Code same as ID for new rooms
 			Phase:     models.PhaseLobby,
 			Players:   make(map[string]*models.Player),
 			Teams:     make(map[string]*models.Team),
@@ -151,6 +168,9 @@ func (ws *WebSocketService) HandleEvent(client *models.Client, event models.Even
 			room.Mu.Lock()
 			ws.handleCreateTeam(client, room, event)
 			room.Mu.Unlock()
+		} else {
+			log.Printf("Cannot create team: room not found. QuizID=%s, RoomID=%s", event.QuizID, client.RoomID)
+			ws.sendErrorToClient(client, fmt.Sprintf("Room not found: %s", event.QuizID))
 		}
 
 	case models.EventJoin:
@@ -505,8 +525,11 @@ func (ws *WebSocketService) handleJoinTeam(client *models.Client, room *models.R
 
 // handleCreateTeam processes team creation events
 func (ws *WebSocketService) handleCreateTeam(client *models.Client, room *models.Room, event models.Event) {
-	if client.Role != "admin" {
-		ws.sendErrorToClient(client, "Only admin can create teams")
+	log.Printf("handleCreateTeam: client.Role=%s, room.Code=%s, event.TeamName=%s", client.Role, room.Code, event.TeamName)
+	
+	if client.Role != "admin" && client.Role != "host" {
+		log.Printf("Access denied: client role is '%s', need 'admin' or 'host'", client.Role)
+		ws.sendErrorToClient(client, fmt.Sprintf("Only admin can create teams (current role: %s)", client.Role))
 		return
 	}
 
