@@ -141,7 +141,7 @@ int sendButtonPress() {
   lastPressTime = now;
 
   String macAddress = getMacAddress();
-  String endpoint = String(SERVER_URL) + "/api/button/press";
+  String endpoint = String(SERVER_URL) + "/quiz/api/button/press";
   
   // Формируем JSON payload согласно API бэкенда
   String payload = String("{\"macAddress\":\"") + macAddress +
