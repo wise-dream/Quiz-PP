@@ -13,8 +13,12 @@ services:
       - WS_ADDR=:8081
       - WS_ALLOWED_ORIGINS=https://wise-dream.ru,https://www.wise-dream.ru,http://localhost:3000,http://127.0.0.1:3000
       - LOG_LEVEL=info
+      - DB_PATH=/srv/data/quiz.db
     ports:
       - "127.0.0.1:8081:8081"
+    volumes:
+      # Монтируем директорию для БД чтобы данные сохранялись
+      - ./backend/data:/srv/data
     restart: unless-stopped
 
   frontend:

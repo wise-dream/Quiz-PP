@@ -19,12 +19,13 @@ func main() {
 	// Initialize database
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
-		dbPath = "./data/quiz.db" // Default path
+		dbPath = "/srv/data/quiz.db" // Default path in container
 	}
 	if err := db.InitDatabase(dbPath); err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
+	log.Printf("Database initialized at: %s", dbPath)
 
 	// Initialize services
 	wsService := services.NewWebSocketService()
