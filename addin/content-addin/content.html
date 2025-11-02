@@ -138,6 +138,12 @@
             applyClick(msg); 
             renderTeams();
           }
+          if (msg.type === 'answer_received') {
+            // Показать модалку при нажатии физической кнопки
+            if (msg.teamId && msg.teamName) {
+              showAnswerModal(msg.teamName);
+            }
+          }
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);

@@ -467,8 +467,22 @@
             updateStatus('Ошибка аутентификации: ' + (msg.message || 'Неверный пароль'), 'disconnected');
             alert('Ошибка аутентификации: ' + (msg.message || 'Неверный пароль'));
           } else if (msg.type === 'answer_received') {
-            // Показать модалку с ответом игрока
-            showAnswerModal(msg.data);
+            // Показать модалку с ответом игрока или физической кнопки
+            // Для физических кнопок приходит teamId и teamName напрямую
+            const answerData = msg.data || msg;
+            if (msg.teamId && msg.teamName) {
+              // Это нажатие физической кнопки - показать модалку с командой
+              showAnswerModal({
+                userId: `team_${msg.teamId}`,
+                answer: 'Нажата физическая кнопка',
+                teamId: msg.teamId,
+                teamName: msg.teamName,
+                isHardwareButton: true
+              });
+            } else {
+              // Это обычный ответ игрока
+              showAnswerModal(answerData);
+            }
           } else if (msg.type === 'team_created') {
             console.log('Team created:', msg.data);
             updateStatus('Команда создана!', 'connected');
@@ -623,7 +637,33 @@
   }
 
   function showAnswerModal(answerData) {
-    // Find player name and team by userId from current room state
+    // Handle hardware button press (physical button)
+    if (answerData.isHardwareButton && answerData.teamName) {
+      $firstAnswerer.textContent = 'Нажата физическая кнопка';
+      $playerAnswer.textContent = 'Команда ответила';
+      
+      // Show team info prominently
+      const teamInfo = document.createElement('div');
+      teamInfo.style.cssText = 'margin-top: 12px; padding: 12px; background: ' + 
+        (currentRoomState?.teams?.[answerData.teamId]?.color || '#3b82f6') + 
+        '; color: white; border-radius: 8px; font-size: 18px; font-weight: bold; text-align: center;';
+      teamInfo.textContent = 'Команда: ' + answerData.teamName;
+      
+      // Remove existing team info if any
+      const existingTeamInfo = $answerModal.querySelector('.team-info');
+      if (existingTeamInfo) {
+        existingTeamInfo.remove();
+      }
+      
+      teamInfo.className = 'team-info';
+      $firstAnswerer.parentNode.insertBefore(teamInfo, $firstAnswerer.nextSibling);
+      
+      $pointsInput.value = 10;
+      $answerModal.style.display = 'block';
+      return;
+    }
+    
+    // Handle regular player answer
     let playerName = 'Неизвестно';
     let teamName = '';
     let teamColor = '';

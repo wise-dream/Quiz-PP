@@ -178,14 +178,31 @@ export const useQuiz = () => {
           } else if (event.type === 'answer_received') {
             console.log('📝 [useQuiz] Answer received from:', event.userId);
             console.log('📝 [useQuiz] Answer:', event.answer);
+            console.log('📝 [useQuiz] Team info:', event.teamId, event.teamName);
+            
             // Update room state with answer
             if (state.room) {
               const updatedRoom = { 
                 ...state.room, 
                 questionActive: false,
-                firstAnswerer: event.userId || ''
+                firstAnswerer: event.userId || event.teamId || ''
               };
               dispatch(setRoom(updatedRoom));
+              
+              // If it's a hardware button press, trigger modal show via custom event
+              if (event.teamId && event.teamName) {
+                const team = state.room.teams?.[event.teamId];
+                const teamColor = team?.color || '#3b82f6';
+                
+                // Dispatch custom event for AdminPanel to handle
+                window.dispatchEvent(new CustomEvent('hardwareButtonPressed', {
+                  detail: {
+                    teamId: event.teamId,
+                    teamName: event.teamName,
+                    teamColor: teamColor
+                  }
+                }));
+              }
             }
           } else if (event.type === 'show_answer') {
             console.log('👁️ [useQuiz] Showing answer');

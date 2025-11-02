@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useQuiz } from '../hooks/useQuizRedux';
 import { teamColors, getTeamColor, cn } from '../utils';
-import { Plus, Users, Play, Square, Settings, LogOut } from 'lucide-react';
+import { Plus, Users, Play, Square, Settings, LogOut, X } from 'lucide-react';
 import { ButtonManagement } from './ButtonManagement';
 
 export const AdminPanel: React.FC = () => {
@@ -9,6 +9,27 @@ export const AdminPanel: React.FC = () => {
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamColor, setNewTeamColor] = useState(teamColors[0].value);
+  const [showAnswerModal, setShowAnswerModal] = useState(false);
+  const [answerTeam, setAnswerTeam] = useState<{ name: string; color: string; teamId: string } | null>(null);
+
+  // Listen for hardware button press events
+  useEffect(() => {
+    const handleHardwareButton = (event: CustomEvent) => {
+      const { teamId, teamName, teamColor } = event.detail;
+      setAnswerTeam({ name: teamName, color: teamColor, teamId });
+      setShowAnswerModal(true);
+    };
+
+    window.addEventListener('hardwareButtonPressed', handleHardwareButton as EventListener);
+    return () => {
+      window.removeEventListener('hardwareButtonPressed', handleHardwareButton as EventListener);
+    };
+  }, []);
+
+  const closeAnswerModal = useCallback(() => {
+    setShowAnswerModal(false);
+    setAnswerTeam(null);
+  }, []);
 
   // All hooks must be called before any conditional returns
   const handleCreateTeam = useCallback(() => {
@@ -30,21 +51,6 @@ export const AdminPanel: React.FC = () => {
   const handleTeamColorChange = useCallback((color: string) => {
     setNewTeamColor(color);
   }, []);
-
-  const getPhaseButton = useCallback((phase: string, label: string, icon: React.ReactNode, color: string) => (
-    <button
-      onClick={() => setGamePhase(phase)}
-      className={cn(
-        'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors',
-        `bg-${color}-600 hover:bg-${color}-700 text-white`,
-        'focus:outline-none focus:ring-2 focus:ring-offset-2',
-        `focus:ring-${color}-500`
-      )}
-    >
-      {icon}
-      {label}
-    </button>
-  ), [setGamePhase]);
 
   // Memoize team list to prevent unnecessary re-renders
   const teamList = useMemo(() => {
@@ -188,10 +194,79 @@ export const AdminPanel: React.FC = () => {
               Управление игрой
             </h2>
             <div className="space-y-3">
-              {getPhaseButton('lobby', 'Ожидание', <Users className="w-4 h-4" />, 'gray')}
-              {getPhaseButton('started', 'Начало игры', <Play className="w-4 h-4" />, 'blue')}
-              {getPhaseButton('active', 'Активировать кнопку', <Play className="w-4 h-4" />, 'green')}
-              {getPhaseButton('finished', 'Завершение', <Square className="w-4 h-4" />, 'red')}
+              {/* Кнопка "Начало игры" - доступна только когда игра не запущена */}
+              <button
+                onClick={() => setGamePhase('started')}
+                disabled={room.phase === 'started' || room.phase === 'active'}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
+                  'bg-blue-600 hover:bg-blue-700 text-white',
+                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
+                  (room.phase === 'started' || room.phase === 'active')
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                )}
+              >
+                <Play className="w-4 h-4" />
+                Начало игры
+              </button>
+
+              {/* Кнопка "Активировать кнопку" / "Деактивировать кнопку" */}
+              <button
+                onClick={() => {
+                  if (room.phase === 'started') {
+                    setGamePhase('active');
+                  } else if (room.phase === 'active') {
+                    setGamePhase('started');
+                  }
+                }}
+                disabled={room.phase !== 'started' && room.phase !== 'active'}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
+                  room.phase === 'active'
+                    ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                    : 'bg-green-600 hover:bg-green-700 text-white',
+                  (room.phase !== 'started' && room.phase !== 'active')
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'focus:outline-none focus:ring-2 focus:ring-offset-2',
+                  room.phase === 'active'
+                    ? 'focus:ring-yellow-500'
+                    : 'focus:ring-green-500'
+                )}
+              >
+                <Play className="w-4 h-4" />
+                {room.phase === 'active' ? 'Деактивировать кнопку' : 'Активировать кнопку'}
+              </button>
+
+              {/* Кнопка "Завершение" - доступна только когда игра начата */}
+              <button
+                onClick={() => setGamePhase('finished')}
+                disabled={room.phase !== 'started' && room.phase !== 'active'}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
+                  'bg-red-600 hover:bg-red-700 text-white',
+                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500',
+                  (room.phase !== 'started' && room.phase !== 'active')
+                    ? 'opacity-50 cursor-not-allowed'
+                    : ''
+                )}
+              >
+                <Square className="w-4 h-4" />
+                Завершение
+              </button>
+
+              {/* Кнопка "Ожидание" - для возврата в начальное состояние */}
+              <button
+                onClick={() => setGamePhase('lobby')}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
+                  'bg-gray-600 hover:bg-gray-700 text-white',
+                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500'
+                )}
+              >
+                <Users className="w-4 h-4" />
+                Ожидание
+              </button>
             </div>
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
@@ -281,6 +356,46 @@ export const AdminPanel: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Answer Modal for Hardware Button */}
+      {showAnswerModal && answerTeam && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                Нажата физическая кнопка!
+              </h3>
+              <button
+                onClick={closeAnswerModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-600 mb-4">
+                Команда ответила через физическую кнопку:
+              </p>
+              <div
+                className="p-6 rounded-lg text-white text-center font-bold text-2xl"
+                style={{ backgroundColor: answerTeam.color }}
+              >
+                {answerTeam.name}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeAnswerModal}
+                className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

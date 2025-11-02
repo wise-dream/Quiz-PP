@@ -156,6 +156,12 @@
             applyClick(msg); 
             renderTeams();
           }
+          if (msg.type === 'answer_received') {
+            // Показать модалку при нажатии физической кнопки
+            if (msg.teamId && msg.teamName) {
+              showAnswerModal(msg.teamName);
+            }
+          }
           if (msg.type === 'phase') {
             state.phase = msg.data.phase;
             state.enableAt = msg.data.enableAt;
