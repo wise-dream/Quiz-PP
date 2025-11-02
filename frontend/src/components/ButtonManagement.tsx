@@ -20,49 +20,61 @@ export const ButtonManagement: React.FC<ButtonManagementProps> = ({ roomCode, te
 
   // Helper function to convert object with numeric keys to array
   const normalizeButtonsArray = (data: any): HardwareButton[] => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data;
+    if (!data) {
+      console.log('[ButtonManagement] normalizeButtonsArray: data is null/undefined');
+      return [];
+    }
+    if (Array.isArray(data)) {
+      console.log('[ButtonManagement] normalizeButtonsArray: data is array, length:', data.length);
+      return data;
+    }
     if (typeof data === 'object') {
-      // Check if it's an object with numeric keys (like {"0": {...}, "1": {...}})
       const keys = Object.keys(data);
+      console.log('[ButtonManagement] normalizeButtonsArray: data is object, keys:', keys);
+      
+      // Check if it's an object with numeric keys (like {"0": {...}, "1": {...}})
       if (keys.length > 0 && keys.every(k => /^\d+$/.test(k))) {
         // Convert object with numeric keys to array
-        return keys.map(key => data[key]).filter(Boolean);
+        const result = keys.map(key => data[key]).filter(Boolean);
+        console.log('[ButtonManagement] normalizeButtonsArray: converted numeric keys to array, length:', result.length);
+        return result;
       }
       // Single object - wrap in array
       if (data.macAddress || data.id) {
+        console.log('[ButtonManagement] normalizeButtonsArray: single button object found');
         return [data];
       }
-      // Try to get values from object
-      return Object.values(data).filter((item: any) => item && (item.macAddress || item.id)) as HardwareButton[];
+      // Try to get values from object (for objects like {"button1": {...}, "button2": {...}})
+      const values = Object.values(data).filter((item: any) => item && (item.macAddress || item.id));
+      console.log('[ButtonManagement] normalizeButtonsArray: extracted values from object, length:', values.length);
+      return values as HardwareButton[];
     }
+    console.log('[ButtonManagement] normalizeButtonsArray: unknown data type:', typeof data);
     return [];
   };
 
-  // Load buttons for this room
+  // Load all buttons (independent of room)
   const loadButtons = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const roomButtonsData = await buttonApi.getButtonsByRoom(roomCode);
+      console.log('[ButtonManagement] Loading all buttons');
       const allButtonsData = await buttonApi.getAllButtons();
+      console.log('[ButtonManagement] All buttons data received:', allButtonsData);
       
-      // Normalize responses (handle both arrays and objects with numeric keys)
-      const roomButtons = normalizeButtonsArray(roomButtonsData);
+      // Normalize response (handle both arrays and objects with numeric keys)
       const allButtons = normalizeButtonsArray(allButtonsData);
       
-      // Combine room buttons with unassigned buttons for display
-      const roomButtonMacs = new Set(roomButtons.map(b => b.macAddress));
-      const unassignedButtons = allButtons.filter(b => !roomButtonMacs.has(b.macAddress) && !b.roomCode);
-      setButtons([...roomButtons, ...unassignedButtons]);
+      console.log('[ButtonManagement] Normalized allButtons:', allButtons.length);
+      setButtons(allButtons);
     } catch (err: any) {
       setError(err.message || 'Failed to load buttons');
-      console.error('Failed to load buttons:', err);
+      console.error('[ButtonManagement] Failed to load buttons:', err);
       setButtons([]); // Set empty array on error
     } finally {
       setLoading(false);
     }
-  }, [roomCode]);
+  }, []);
 
   useEffect(() => {
     loadButtons();
@@ -230,38 +242,45 @@ export const ButtonManagement: React.FC<ButtonManagementProps> = ({ roomCode, te
           </div>
         ) : (
           buttons.map((button) => {
-            const isAssigned = button.roomCode === roomCode && button.teamId;
-            const assignedTeam = isAssigned && teams[button.teamId] ? teams[button.teamId] : null;
+            // Check if button is assigned to current room and team exists
+            const isAssignedToCurrentRoom = button.roomCode === roomCode && button.teamId;
+            const assignedTeam = isAssignedToCurrentRoom && button.teamId && teams[button.teamId] ? teams[button.teamId] : null;
+            
+            // Show team name only if assigned to current room
+            const showTeamInfo = button.roomCode === roomCode && button.teamName;
 
             return (
               <div
                 key={button.macAddress}
                 className={cn(
                   'p-4 border rounded-lg',
-                  isAssigned ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'
+                  isAssignedToCurrentRoom ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'
                 )}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-medium text-gray-900">
-                        {button.name || 'Без названия'}
+                    <div className="flex items-center gap-2 mb-3">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {button.name || <span className="text-gray-400 italic">Без названия</span>}
                       </h3>
                       {!button.isActive && (
-                        <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded">
+                        <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full font-medium">
                           Неактивна
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 font-mono mb-1">
-                      MAC: {formatMAC(button.macAddress)}
-                    </p>
-                    {button.buttonId && (
-                      <p className="text-xs text-gray-500 mb-2">
-                        Button ID: {button.buttonId}
+                    <div className="space-y-1 mb-3">
+                      <p className="text-sm text-gray-500">
+                        <span className="font-medium">MAC адрес:</span>{' '}
+                        <span className="font-mono text-gray-700">{formatMAC(button.macAddress)}</span>
                       </p>
-                    )}
-                    {isAssigned && assignedTeam ? (
+                      {button.buttonId && (
+                        <p className="text-xs text-gray-500">
+                          <span className="font-medium">Button ID:</span> {button.buttonId}
+                        </p>
+                      )}
+                    </div>
+                    {assignedTeam ? (
                       <div className="flex items-center gap-2 mt-2">
                         <div
                           className="w-3 h-3 rounded-full"
@@ -269,6 +288,18 @@ export const ButtonManagement: React.FC<ButtonManagementProps> = ({ roomCode, te
                         />
                         <span className="text-sm text-gray-700">
                           Привязана к: <strong>{assignedTeam.name}</strong>
+                        </span>
+                      </div>
+                    ) : showTeamInfo ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-sm text-gray-700">
+                          Привязана к: <strong>{button.teamName}</strong>
+                        </span>
+                      </div>
+                    ) : button.roomCode && button.roomCode !== roomCode ? (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-sm text-gray-500">
+                          Привязана к другой комнате ({button.roomCode})
                         </span>
                       </div>
                     ) : (
@@ -284,7 +315,7 @@ export const ButtonManagement: React.FC<ButtonManagementProps> = ({ roomCode, te
                     )}
                   </div>
                   <div className="flex items-center gap-2 ml-4">
-                    {isAssigned ? (
+                    {isAssignedToCurrentRoom ? (
                       <button
                         onClick={() => handleUnassignButton(button.macAddress)}
                         className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
@@ -292,6 +323,10 @@ export const ButtonManagement: React.FC<ButtonManagementProps> = ({ roomCode, te
                       >
                         <Unlink className="w-4 h-4" />
                       </button>
+                    ) : button.roomCode && button.roomCode !== roomCode ? (
+                      <span className="text-xs text-gray-500 px-2 py-1">
+                        В другой комнате
+                      </span>
                     ) : (
                       <select
                         value=""

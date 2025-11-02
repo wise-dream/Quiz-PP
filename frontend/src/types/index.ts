@@ -122,11 +122,13 @@ export interface HardwareButton {
   macAddress: string;
   buttonId: string;
   name: string;
-  roomCode: string;
-  teamId: string;
-  teamName: string;
+  // Note: roomCode, teamId, teamName are assignment data, not part of button itself
+  // These should ideally be in a separate assignment table, but kept here for compatibility
+  roomCode?: string;  // Optional - only set when assigned to a room
+  teamId?: string;    // Optional - only set when assigned to a team
+  teamName?: string;  // Optional - only set when assigned to a team
   isActive: boolean;
-  lastPress: string;
+  lastPress?: string; // Optional - only set after first press
   pressCount: number;
   createdAt: string;
   updatedAt: string;
