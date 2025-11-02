@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"powerpoint-quiz/internal/models"
 	"powerpoint-quiz/internal/services"
 
 	"github.com/gorilla/mux"
