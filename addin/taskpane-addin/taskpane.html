@@ -393,11 +393,17 @@
           } else if (msg.type === 'state') {
             updatePhaseInfo(msg.data);
           } else if (msg.type === 'answer_received') {
-            // For answer_received, the data is in the message itself, not in msg.data
-            showAnswerModal({
-              userId: msg.userId,
-              answer: msg.answer
-            });
+            // Handle hardware button press or regular answer
+            if (msg.teamId && msg.teamName) {
+              // Hardware button press - show alert
+              showButtonPressAlert(msg.teamName, msg.teamId);
+            } else {
+              // Regular answer from player
+              showAnswerModal({
+                userId: msg.userId,
+                answer: msg.answer
+              });
+            }
           } else if (msg.type === 'team_created') {
             console.log('Team created:', msg.data);
             updateStatus('Команда создана!', 'connected');
@@ -467,20 +473,13 @@
             updateStatus('Ошибка аутентификации: ' + (msg.message || 'Неверный пароль'), 'disconnected');
             alert('Ошибка аутентификации: ' + (msg.message || 'Неверный пароль'));
           } else if (msg.type === 'answer_received') {
-            // Показать модалку с ответом игрока или физической кнопки
-            // Для физических кнопок приходит teamId и teamName напрямую
-            const answerData = msg.data || msg;
+            // Handle hardware button press or regular answer
             if (msg.teamId && msg.teamName) {
-              // Это нажатие физической кнопки - показать модалку с командой
-              showAnswerModal({
-                userId: `team_${msg.teamId}`,
-                answer: 'Нажата физическая кнопка',
-                teamId: msg.teamId,
-                teamName: msg.teamName,
-                isHardwareButton: true
-              });
+              // Hardware button press - show alert
+              showButtonPressAlert(msg.teamName, msg.teamId);
             } else {
-              // Это обычный ответ игрока
+              // Regular answer from player
+              const answerData = msg.data || msg;
               showAnswerModal(answerData);
             }
           } else if (msg.type === 'team_created') {
@@ -634,6 +633,48 @@
     $teamColorBtns.forEach(btn => {
       btn.style.boxShadow = btn.dataset.color === color ? '0 0 0 2px #000' : '0 0 0 1px #ccc';
     });
+  }
+
+  function showButtonPressAlert(teamName, teamId) {
+    // Get team color
+    let teamColor = '#3b82f6'; // Default blue
+    if (currentRoomState && currentRoomState.teams && currentRoomState.teams[teamId]) {
+      teamColor = currentRoomState.teams[teamId].color || teamColor;
+    }
+    
+    // Show alert using Office.js dialog if available, otherwise use browser alert
+    const message = `🔔 Кнопка нажата!\n\nКоманда: ${teamName}`;
+    
+    if (Office && Office.context && Office.context.ui) {
+      Office.context.ui.displayDialogAsync(
+        `data:text/html,<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Кнопка нажата</title><style>
+          body { font-family: Segoe UI, Arial; text-align: center; padding: 20px; background: linear-gradient(135deg, ${teamColor} 0%, ${teamColor}dd 100%); }
+          .container { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+          h1 { margin: 0 0 20px 0; color: #333; font-size: 28px; }
+          .team { background: ${teamColor}; color: white; padding: 15px 25px; border-radius: 10px; font-size: 22px; font-weight: bold; margin: 20px 0; }
+          .emoji { font-size: 64px; margin-bottom: 10px; }
+        </style></head><body>
+          <div class="container">
+            <div class="emoji">🔔</div>
+            <h1>Кнопка нажата!</h1>
+            <div class="team">${teamName}</div>
+            <button onclick="window.close()" style="padding: 10px 25px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; margin-top: 15px;">Понятно</button>
+          </div>
+        </body></html>`,
+        { height: 50, width: 50 },
+        function(result) {
+          if (result.status === Office.AsyncResultStatus.Failed) {
+            // Fallback to alert if dialog fails
+            alert(message);
+          }
+        }
+      );
+    } else {
+      // Fallback to browser alert
+      alert(message);
+    }
+    
+    console.log(`Hardware button pressed by team: ${teamName}`);
   }
 
   function showAnswerModal(answerData) {

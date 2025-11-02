@@ -354,6 +354,20 @@ func (ws *WebSocketService) handleHostSetState(client *models.Client, room *mode
 		room.Phase = models.PhaseActive
 		room.EnableAt = time.Now()
 		room.QuestionActive = true // Enable question answering
+		// Clear previous answer state when transitioning to active
+		room.FirstAnswerer = ""
+
+		// Send phase changed event
+		phaseChangedEvent := models.Event{
+			Type:  models.EventPhaseChanged,
+			Phase: event.Phase,
+		}
+		ws.broadcastToRoom(room, phaseChangedEvent)
+	} else if event.Phase == models.PhaseStarted && room.Phase == models.PhaseActive {
+		// Transition from active to started - clear question state
+		room.Phase = models.PhaseStarted
+		room.QuestionActive = false
+		room.FirstAnswerer = ""
 
 		// Send phase changed event
 		phaseChangedEvent := models.Event{
@@ -896,6 +910,11 @@ func (ws *WebSocketService) HandleButtonPress(roomCode, teamID string) error {
 	room.Mu.Lock()
 	defer room.Mu.Unlock()
 
+	// Check if room is in active phase - button can only be pressed in active phase
+	if room.Phase != models.PhaseActive {
+		return fmt.Errorf("room %s is not in active phase (current phase: %s)", roomCode, room.Phase)
+	}
+
 	// Check if question is active
 	if !room.QuestionActive {
 		return fmt.Errorf("question not active in room %s", roomCode)
@@ -915,8 +934,18 @@ func (ws *WebSocketService) HandleButtonPress(roomCode, teamID string) error {
 	// Set first answerer - use team ID as identifier for hardware buttons
 	room.FirstAnswerer = fmt.Sprintf("team_%s", teamID)
 	room.QuestionActive = false // Stop accepting more answers
+	
+	// Change phase from active to started after button press
+	room.Phase = models.PhaseStarted
 
-	log.Printf("First answer received from hardware button - Team: %s (%s) in room %s", team.Name, teamID, roomCode)
+	log.Printf("First answer received from hardware button - Team: %s (%s) in room %s. Phase changed to started.", team.Name, teamID, roomCode)
+
+	// Broadcast phase changed event
+	phaseChangedEvent := models.Event{
+		Type:  models.EventPhaseChanged,
+		Phase: models.PhaseStarted,
+	}
+	ws.broadcastToRoom(room, phaseChangedEvent)
 
 	// Broadcast answer received event
 	answerEvent := models.Event{

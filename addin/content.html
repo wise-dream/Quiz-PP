@@ -542,6 +542,17 @@
                         updatePhaseIndicator(data.data.phase);
                         updatePlayersTable(data.data);
                         log(`Room phase: ${data.data.phase}`, 'info');
+                    } else if (data.type === 'answer_received') {
+                        // Handle hardware button press
+                        if (data.teamId && data.teamName) {
+                            showButtonPressAlert(data.teamName, data.teamId);
+                        }
+                    } else if (data.type === 'phase_changed') {
+                        // Update phase when changed
+                        if (currentRoom) {
+                            currentRoom.phase = data.phase;
+                            updatePhaseIndicator(data.phase);
+                        }
                     }
                 } catch (e) {
                     log(`Error parsing message: ${e.message}`, 'error');
@@ -576,6 +587,74 @@
             
             ws.send(JSON.stringify(stateEvent));
             log(`Set phase to: ${phase}`, 'info');
+        }
+
+        function showButtonPressAlert(teamName, teamId) {
+            // Get team color from current room
+            let teamColor = '#3b82f6'; // Default blue
+            if (currentRoom && currentRoom.teams && currentRoom.teams[teamId]) {
+                teamColor = currentRoom.teams[teamId].color || teamColor;
+            }
+            
+            // Create alert overlay
+            const alertHtml = `
+                <div style="
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: white;
+                    border: 4px solid ${teamColor};
+                    border-radius: 20px;
+                    padding: 30px 40px;
+                    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+                    z-index: 10000;
+                    text-align: center;
+                    min-width: 300px;
+                    animation: popup 0.3s ease-out;
+                ">
+                    <div style="font-size: 48px; margin-bottom: 15px;">🔔</div>
+                    <h2 style="margin: 0 0 15px 0; color: #333; font-size: 24px;">
+                        Кнопка нажата!
+                    </h2>
+                    <div style="
+                        background: ${teamColor};
+                        color: white;
+                        padding: 15px 25px;
+                        border-radius: 10px;
+                        font-size: 20px;
+                        font-weight: bold;
+                        margin: 15px 0;
+                    ">
+                        ${teamName}
+                    </div>
+                    <button onclick="this.parentElement.remove()" style="
+                        margin-top: 15px;
+                        padding: 10px 25px;
+                        background: #007bff;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">Понятно</button>
+                </div>
+            `;
+            
+            // Add to document body
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = alertHtml;
+            document.body.appendChild(tempDiv.firstElementChild);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                const alert = document.querySelector('[style*="z-index: 10000"]');
+                if (alert) {
+                    alert.remove();
+                }
+            }, 5000);
+            
+            log(`Hardware button pressed by team: ${teamName}`, 'success');
         }
 
         // Initialize Office.js
