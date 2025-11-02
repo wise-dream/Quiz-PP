@@ -1,2 +1,0 @@
-# сборка и заливка env
-pio run -e httpbin_post -t upload

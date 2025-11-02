@@ -38,10 +38,11 @@
 #define HAS_X_API_KEY 1
 #endif
 
-const unsigned long DEBOUNCE_MS = 200;  // Защита от дребезга (мс)
+const unsigned long DEBOUNCE_MS = 50;  // Защита от дребезга (мс) - как в рабочем примере
 unsigned long lastAutoSend = 0;
-int lastBtn = HIGH;
-unsigned long lastBtnChange = 0;
+int lastButtonState = HIGH;  // Изменено с lastBtn для совместимости с рабочей логикой
+int currentButtonState = HIGH;  // Добавлено для правильной обработки debounce
+unsigned long lastDebounceTime = 0;  // Изменено с lastBtnChange для совместимости
 unsigned long lastPressTime = 0;
 const unsigned long PRESS_COOLDOWN_MS = 500;  // Минимальный интервал между нажатиями
 
@@ -115,15 +116,26 @@ void addCommonHeaders(HTTPClient& http) {
 
 // Отправка нажатия кнопки на сервер
 int sendButtonPress() {
+  unsigned long requestStartTime = millis();
+  String separator = String("============================================================"); // 60 символов
+  
+  Serial.println();
+  Serial.println(separator);
+  Serial.println("[HTTP REQUEST] ========== Начало запроса ==========");
+  
   if (!ensureWiFi()) {
-    Serial.println("[ERROR] Нет Wi-Fi, пропускаю отправку.");
+    Serial.println("[ERROR] ❌ Нет Wi-Fi подключения, пропускаю отправку.");
+    Serial.println(separator);
+    Serial.println();
     return -1;
   }
 
   // Проверка кулдауна между нажатиями
   unsigned long now = millis();
   if (lastPressTime > 0 && (now - lastPressTime) < PRESS_COOLDOWN_MS) {
-    Serial.println("[SKIP] Слишком быстрое нажатие, пропускаю.");
+    Serial.printf("[SKIP] ⏸️  Слишком быстрое нажатие (cooldown: %lu мс), пропускаю.\n", PRESS_COOLDOWN_MS);
+    Serial.println(separator);
+    Serial.println();
     return -2;
   }
   lastPressTime = now;
@@ -135,28 +147,80 @@ int sendButtonPress() {
   String payload = String("{\"macAddress\":\"") + macAddress +
                    "\",\"buttonId\":\"" + String(BUTTON_ID) + "\"}";
 
-  Serial.printf("[SEND] MAC: %s, ButtonID: %s\n", macAddress.c_str(), BUTTON_ID);
-  Serial.printf("[SEND] Endpoint: %s\n", endpoint.c_str());
-  Serial.printf("[SEND] Payload: %s\n", payload.c_str());
+  // Подробное логирование запроса
+  Serial.println("[REQUEST INFO]");
+  Serial.printf("  Method: POST\n");
+  Serial.printf("  URL: %s\n", endpoint.c_str());
+  Serial.printf("  Protocol: %s\n", endpoint.startsWith("https://") ? "HTTPS" : "HTTP");
+  Serial.printf("  MAC Address: %s\n", macAddress.c_str());
+  Serial.printf("  Button ID: %s\n", BUTTON_ID);
+  Serial.printf("  Timestamp: %lu ms\n", now);
+  
+  Serial.println("\n[REQUEST HEADERS]");
+  Serial.println("  User-Agent: ESP32C3-Button/1.0");
+  Serial.println("  Connection: close");
+  Serial.println("  Content-Type: application/json");
+#ifdef HAS_AUTH_BEARER
+  Serial.printf("  Authorization: Bearer %s\n", AUTH_BEARER);
+#endif
+#ifdef HAS_X_API_KEY
+  Serial.printf("  X-API-Key: %s\n", X_API_KEY);
+#endif
+  
+  Serial.println("\n[REQUEST BODY]");
+  Serial.printf("  %s\n", payload.c_str());
 
   int httpCode = -1;
   String response = "";
+  unsigned long responseTime = 0;
 
+  Serial.println("\n[NETWORK] Отправка запроса...");
+  
   if (endpoint.startsWith("https://")) {
     WiFiClientSecure client;
 #if USE_TLS_INSECURE
     client.setInsecure();  // Для самоподписанных сертификатов
+    Serial.println("  TLS: Insecure mode (самоподписанный сертификат)");
 #endif
     HTTPClient http;
     http.setTimeout(10000);  // 10 секунд таймаут
     if (http.begin(client, endpoint)) {
       addCommonHeaders(http);
       http.addHeader("Content-Type", "application/json");
+      
+      unsigned long sendStart = millis();
       httpCode = http.POST(payload);
+      responseTime = millis() - sendStart;
       response = http.getString();
+      
+      Serial.println("\n[RESPONSE]");
+      Serial.printf("  HTTP Status Code: %d\n", httpCode);
+      Serial.printf("  Response Time: %lu ms\n", responseTime);
+      Serial.printf("  Response Size: %d bytes\n", response.length());
+      
+      // Логируем заголовки ответа, если доступны
+      int headerCount = http.headers();
+      if (headerCount > 0) {
+        Serial.println("\n[RESPONSE HEADERS]");
+        for (int i = 0; i < headerCount; i++) {
+          String headerName = http.headerName(i);
+          String headerValue = http.header(i);
+          Serial.printf("  %s: %s\n", headerName.c_str(), headerValue.c_str());
+        }
+      }
+      
+      Serial.println("\n[RESPONSE BODY]");
+      if (response.length() > 0) {
+        Serial.printf("  %s\n", response.c_str());
+      } else {
+        Serial.println("  (пусто)");
+      }
+      
       http.end();
     } else {
-      Serial.println("[ERROR] HTTP begin() failed (HTTPS).");
+      Serial.println("[ERROR] ❌ HTTP begin() failed (HTTPS).");
+      Serial.println(separator);
+      Serial.println();
       return -1;
     }
   } else {
@@ -166,33 +230,81 @@ int sendButtonPress() {
     if (http.begin(client, endpoint)) {
       addCommonHeaders(http);
       http.addHeader("Content-Type", "application/json");
+      
+      unsigned long sendStart = millis();
       httpCode = http.POST(payload);
+      responseTime = millis() - sendStart;
       response = http.getString();
+      
+      Serial.println("\n[RESPONSE]");
+      Serial.printf("  HTTP Status Code: %d\n", httpCode);
+      Serial.printf("  Response Time: %lu ms\n", responseTime);
+      Serial.printf("  Response Size: %d bytes\n", response.length());
+      
+      // Логируем заголовки ответа, если доступны
+      int headerCount = http.headers();
+      if (headerCount > 0) {
+        Serial.println("\n[RESPONSE HEADERS]");
+        for (int i = 0; i < headerCount; i++) {
+          String headerName = http.headerName(i);
+          String headerValue = http.header(i);
+          Serial.printf("  %s: %s\n", headerName.c_str(), headerValue.c_str());
+        }
+      }
+      
+      Serial.println("\n[RESPONSE BODY]");
+      if (response.length() > 0) {
+        Serial.printf("  %s\n", response.c_str());
+      } else {
+        Serial.println("  (пусто)");
+      }
+      
       http.end();
     } else {
-      Serial.println("[ERROR] HTTP begin() failed (HTTP).");
+      Serial.println("[ERROR] ❌ HTTP begin() failed (HTTP).");
+      Serial.println(separator);
+      Serial.println();
       return -1;
     }
   }
 
-  // Обработка ответа
-  Serial.printf("[RESPONSE] HTTP Code: %d\n", httpCode);
+  // Детальная обработка ответа
+  Serial.println("\n[RESULT ANALYSIS]");
+  unsigned long totalTime = millis() - requestStartTime;
+  Serial.printf("  Total Request Time: %lu ms\n", totalTime);
+  
   if (response.length() > 0) {
-    Serial.printf("[RESPONSE] Body: %s\n", response.c_str());
-    
     // Проверяем успешность обработки
     if (httpCode == 200 && response.indexOf("\"processed\":true") > 0) {
-      Serial.println("[SUCCESS] ✅ Нажатие обработано успешно!");
+      Serial.println("  Status: ✅ SUCCESS - Нажатие обработано успешно!");
     } else if (httpCode == 200 && response.indexOf("\"processed\":false") > 0) {
-      Serial.println("[INFO] ⚠️ Нажатие получено, но не обработано (вопрос не активен или уже ответили)");
+      Serial.println("  Status: ⚠️  WARNING - Нажатие получено, но не обработано");
+      Serial.println("          (вопрос не активен или уже ответили)");
     } else if (httpCode == 400) {
-      Serial.println("[ERROR] ❌ Ошибка: Кнопка не найдена или не привязана к команде");
+      Serial.println("  Status: ❌ ERROR - Bad Request");
+      Serial.println("          Кнопка не найдена или не привязана к команде");
+    } else if (httpCode == 401) {
+      Serial.println("  Status: ❌ ERROR - Unauthorized");
+      Serial.println("          Проблема с аутентификацией");
+    } else if (httpCode == 404) {
+      Serial.println("  Status: ❌ ERROR - Not Found");
+      Serial.println("          Endpoint не найден");
+    } else if (httpCode == 500) {
+      Serial.println("  Status: ❌ ERROR - Internal Server Error");
+      Serial.println("          Ошибка на сервере");
+    } else if (httpCode < 0) {
+      Serial.printf("  Status: ❌ ERROR - Network error (code: %d)\n", httpCode);
+      Serial.println("          Возможные причины: нет подключения, таймаут");
     } else {
-      Serial.printf("[WARNING] ⚠️ Неожиданный ответ: %d\n", httpCode);
+      Serial.printf("  Status: ⚠️  UNKNOWN - HTTP %d\n", httpCode);
     }
   } else {
-    Serial.println("[WARNING] Пустой ответ от сервера");
+    Serial.println("  Status: ⚠️  WARNING - Пустой ответ от сервера");
   }
+
+  Serial.println(separator);
+  Serial.println("[HTTP REQUEST] ========== Конец запроса ==========");
+  Serial.println();
 
   return httpCode;
 }
@@ -200,7 +312,7 @@ int sendButtonPress() {
 void setupButtonIfAny() {
 #if BTN_PIN >= 0
   pinMode(BTN_PIN, INPUT_PULLUP);
-  lastBtn = digitalRead(BTN_PIN);
+  currentButtonState = lastButtonState = digitalRead(BTN_PIN);
 #endif
 }
 
@@ -217,6 +329,8 @@ void setup() {
   
 #if BTN_PIN >= 0
   Serial.printf("Button pin: %d (INPUT_PULLUP)\n", BTN_PIN);
+  Serial.printf("Начальное состояние кнопки: %s\n", 
+                currentButtonState == LOW ? "LOW (нажата)" : "HIGH (отпущена)");
 #else
   Serial.println("Button: нет (только Serial 's')");
 #endif
@@ -268,21 +382,37 @@ void loop() {
     }
   }
 
-  // Обработка физической кнопки
+  // Обработка физической кнопки (логика из рабочего примера)
 #if BTN_PIN >= 0
-  int raw = digitalRead(BTN_PIN);
+  int reading = digitalRead(BTN_PIN);
   unsigned long now = millis();
   
-  // Обнаружение нажатия (LOW при нажатии на INPUT_PULLUP)
-  if (raw != lastBtn && (now - lastBtnChange) > DEBOUNCE_MS) {
-    lastBtnChange = now;
-    lastBtn = raw;
-    
-    if (raw == LOW) {  // Кнопка нажата
-      Serial.println("\n[BUTTON] 🔴 Нажатие кнопки -> отправка на сервер...");
-      sendButtonPress();
+  // Если состояние изменилось, запускаем таймер debounce
+  if (reading != currentButtonState) {
+    lastDebounceTime = now;
+  }
+  
+  // Если состояние стабильно достаточно долго
+  if ((now - lastDebounceTime) > DEBOUNCE_MS) {
+    // Если произошло реальное изменение
+    if (reading != lastButtonState) {
+      // Сохраняем новое состояние
+      lastButtonState = reading;
+      
+      // Если произошло нажатие (LOW, так как кнопка подключена к земле)
+      if (reading == LOW) {
+        Serial.println("\n[BUTTON STATE] 🔴 GPIO" + String(BTN_PIN) + " = LOW (нажата)");
+        Serial.println("[BUTTON] Кнопка нажата! -> отправка HTTP запроса на сервер...");
+        sendButtonPress();
+      } else {
+        Serial.println("[BUTTON STATE] 🟢 GPIO" + String(BTN_PIN) + " = HIGH (отпущена)");
+        Serial.println("[BUTTON] Кнопка отпущена");
+      }
     }
   }
+  
+  // Обновляем текущее состояние для следующей итерации
+  currentButtonState = reading;
 #endif
 
   delay(10);  // Небольшая задержка для стабильности
