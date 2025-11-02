@@ -18,17 +18,43 @@ export const ButtonManagement: React.FC<ButtonManagementProps> = ({ roomCode, te
   const [newButtonName, setNewButtonName] = useState('');
   const [assigningButton, setAssigningButton] = useState<string | null>(null);
 
+  // Helper function to convert object with numeric keys to array
+  const normalizeButtonsArray = (data: any): HardwareButton[] => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (typeof data === 'object') {
+      // Check if it's an object with numeric keys (like {"0": {...}, "1": {...}})
+      const keys = Object.keys(data);
+      if (keys.length > 0 && keys.every(k => /^\d+$/.test(k))) {
+        // Convert object with numeric keys to array
+        return keys.map(key => data[key]).filter(Boolean);
+      }
+      // Single object - wrap in array
+      if (data.macAddress || data.id) {
+        return [data];
+      }
+      // Try to get values from object
+      return Object.values(data).filter((item: any) => item && (item.macAddress || item.id)) as HardwareButton[];
+    }
+    return [];
+  };
+
   // Load buttons for this room
   const loadButtons = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const roomButtons = await buttonApi.getButtonsByRoom(roomCode) || [];
-      const allButtons = await buttonApi.getAllButtons() || [];
+      const roomButtonsData = await buttonApi.getButtonsByRoom(roomCode);
+      const allButtonsData = await buttonApi.getAllButtons();
+      
+      // Normalize responses (handle both arrays and objects with numeric keys)
+      const roomButtons = normalizeButtonsArray(roomButtonsData);
+      const allButtons = normalizeButtonsArray(allButtonsData);
+      
       // Combine room buttons with unassigned buttons for display
-      const roomButtonMacs = new Set((roomButtons || []).map(b => b.macAddress));
-      const unassignedButtons = (allButtons || []).filter(b => !roomButtonMacs.has(b.macAddress) && !b.roomCode);
-      setButtons([...(roomButtons || []), ...unassignedButtons]);
+      const roomButtonMacs = new Set(roomButtons.map(b => b.macAddress));
+      const unassignedButtons = allButtons.filter(b => !roomButtonMacs.has(b.macAddress) && !b.roomCode);
+      setButtons([...roomButtons, ...unassignedButtons]);
     } catch (err: any) {
       setError(err.message || 'Failed to load buttons');
       console.error('Failed to load buttons:', err);

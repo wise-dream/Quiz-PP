@@ -194,79 +194,73 @@ export const AdminPanel: React.FC = () => {
               Управление игрой
             </h2>
             <div className="space-y-3">
-              {/* Кнопка "Начало игры" - доступна только когда игра не запущена */}
-              <button
-                onClick={() => setGamePhase('started')}
-                disabled={room.phase === 'started' || room.phase === 'active'}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
-                  'bg-blue-600 hover:bg-blue-700 text-white',
-                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500',
-                  (room.phase === 'started' || room.phase === 'active')
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                )}
-              >
-                <Play className="w-4 h-4" />
-                Начало игры
-              </button>
+              {/* Кнопка "Начало игры" - показывается только когда игра не запущена */}
+              {(room.phase === 'lobby' || room.phase === 'finished') && (
+                <button
+                  onClick={() => setGamePhase('started')}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
+                    'bg-blue-600 hover:bg-blue-700 text-white',
+                    'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                  )}
+                >
+                  <Play className="w-4 h-4" />
+                  Начало игры
+                </button>
+              )}
 
-              {/* Кнопка "Активировать кнопку" / "Деактивировать кнопку" */}
-              <button
-                onClick={() => {
-                  if (room.phase === 'started') {
-                    setGamePhase('active');
-                  } else if (room.phase === 'active') {
-                    setGamePhase('started');
-                  }
-                }}
-                disabled={room.phase !== 'started' && room.phase !== 'active'}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
-                  room.phase === 'active'
-                    ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
-                    : 'bg-green-600 hover:bg-green-700 text-white',
-                  (room.phase !== 'started' && room.phase !== 'active')
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'focus:outline-none focus:ring-2 focus:ring-offset-2',
-                  room.phase === 'active'
-                    ? 'focus:ring-yellow-500'
-                    : 'focus:ring-green-500'
-                )}
-              >
-                <Play className="w-4 h-4" />
-                {room.phase === 'active' ? 'Деактивировать кнопку' : 'Активировать кнопку'}
-              </button>
+              {/* Кнопка "Активировать кнопку" / "Деактивировать кнопку" - показывается только когда игра начата */}
+              {(room.phase === 'started' || room.phase === 'active') && (
+                <button
+                  onClick={() => {
+                    if (room.phase === 'started') {
+                      setGamePhase('active');
+                    } else if (room.phase === 'active') {
+                      setGamePhase('started');
+                    }
+                  }}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
+                    'focus:outline-none focus:ring-2 focus:ring-offset-2',
+                    room.phase === 'active'
+                      ? 'bg-yellow-600 hover:bg-yellow-700 text-white focus:ring-yellow-500'
+                      : 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-500'
+                  )}
+                >
+                  <Play className="w-4 h-4" />
+                  {room.phase === 'active' ? 'Деактивировать кнопку' : 'Активировать кнопку'}
+                </button>
+              )}
 
-              {/* Кнопка "Завершение" - доступна только когда игра начата */}
-              <button
-                onClick={() => setGamePhase('finished')}
-                disabled={room.phase !== 'started' && room.phase !== 'active'}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
-                  'bg-red-600 hover:bg-red-700 text-white',
-                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500',
-                  (room.phase !== 'started' && room.phase !== 'active')
-                    ? 'opacity-50 cursor-not-allowed'
-                    : ''
-                )}
-              >
-                <Square className="w-4 h-4" />
-                Завершение
-              </button>
+              {/* Кнопка "Завершение" - показывается только когда игра начата */}
+              {(room.phase === 'started' || room.phase === 'active') && (
+                <button
+                  onClick={() => setGamePhase('finished')}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
+                    'bg-red-600 hover:bg-red-700 text-white',
+                    'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500'
+                  )}
+                >
+                  <Square className="w-4 h-4" />
+                  Завершение
+                </button>
+              )}
 
-              {/* Кнопка "Ожидание" - для возврата в начальное состояние */}
-              <button
-                onClick={() => setGamePhase('lobby')}
-                className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
-                  'bg-gray-600 hover:bg-gray-700 text-white',
-                  'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500'
-                )}
-              >
-                <Users className="w-4 h-4" />
-                Ожидание
-              </button>
+              {/* Кнопка "Ожидание" - показывается только когда не в лобби (чтобы вернуться обратно) */}
+              {room.phase !== 'lobby' && (
+                <button
+                  onClick={() => setGamePhase('lobby')}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors w-full',
+                    'bg-gray-600 hover:bg-gray-700 text-white',
+                    'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500'
+                  )}
+                >
+                  <Users className="w-4 h-4" />
+                  Ожидание
+                </button>
+              )}
             </div>
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
