@@ -534,28 +534,37 @@
 
             ws.onmessage = function(event) {
                 try {
-                    const data = JSON.parse(event.data);
-                    log(`Received: ${data.type}`, 'info');
+                    // Handle multiple JSON messages in one string (separated by newlines)
+                    const messages = event.data.split('\n').filter((line) => line.trim() !== '');
                     
-                    if (data.type === 'state') {
-                        currentRoom = data.data;
-                        updatePhaseIndicator(data.data.phase);
-                        updatePlayersTable(data.data);
-                        log(`Room phase: ${data.data.phase}`, 'info');
-                    } else if (data.type === 'answer_received') {
-                        // Handle hardware button press
-                        if (data.teamId && data.teamName) {
-                            showButtonPressAlert(data.teamName, data.teamId);
-                        }
-                    } else if (data.type === 'phase_changed') {
-                        // Update phase when changed
-                        if (currentRoom) {
-                            currentRoom.phase = data.phase;
-                            updatePhaseIndicator(data.phase);
+                    for (const message of messages) {
+                        try {
+                            const data = JSON.parse(message);
+                            log(`Received: ${data.type}`, 'info');
+                            
+                            if (data.type === 'state') {
+                                currentRoom = data.data;
+                                updatePhaseIndicator(data.data.phase);
+                                updatePlayersTable(data.data);
+                                log(`Room phase: ${data.data.phase}`, 'info');
+                            } else if (data.type === 'answer_received') {
+                                // Handle hardware button press
+                                if (data.teamId && data.teamName) {
+                                    showButtonPressAlert(data.teamName, data.teamId, data.teamColor);
+                                }
+                            } else if (data.type === 'phase_changed') {
+                                // Update phase when changed
+                                if (currentRoom) {
+                                    currentRoom.phase = data.phase;
+                                    updatePhaseIndicator(data.phase);
+                                }
+                            }
+                        } catch (parseError) {
+                            log(`Error parsing individual message: ${parseError.message}`, 'error');
                         }
                     }
                 } catch (e) {
-                    log(`Error parsing message: ${e.message}`, 'error');
+                    log(`Error processing message: ${e.message}`, 'error');
                 }
             };
 
@@ -589,11 +598,17 @@
             log(`Set phase to: ${phase}`, 'info');
         }
 
-        function showButtonPressAlert(teamName, teamId) {
-            // Get team color from current room
-            let teamColor = '#3b82f6'; // Default blue
+        function showButtonPressAlert(teamName, teamId, teamColor) {
+            // Get team color from current room or use provided/default
+            let color = teamColor || '#3b82f6'; // Default blue
             if (currentRoom && currentRoom.teams && currentRoom.teams[teamId]) {
-                teamColor = currentRoom.teams[teamId].color || teamColor;
+                color = currentRoom.teams[teamId].color || color;
+            }
+            
+            // Remove existing alert if any
+            const existingAlert = document.querySelector('[style*="z-index: 10000"]');
+            if (existingAlert) {
+                existingAlert.remove();
             }
             
             // Create alert overlay
@@ -604,7 +619,7 @@
                     left: 50%;
                     transform: translate(-50%, -50%);
                     background: white;
-                    border: 4px solid ${teamColor};
+                    border: 4px solid ${color};
                     border-radius: 20px;
                     padding: 30px 40px;
                     box-shadow: 0 8px 32px rgba(0,0,0,0.3);
@@ -618,7 +633,7 @@
                         Кнопка нажата!
                     </h2>
                     <div style="
-                        background: ${teamColor};
+                        background: ${color};
                         color: white;
                         padding: 15px 25px;
                         border-radius: 10px;
@@ -655,6 +670,25 @@
             }, 5000);
             
             log(`Hardware button pressed by team: ${teamName}`, 'success');
+        }
+        
+        // Add popup animation if not exists
+        if (!document.querySelector('style[data-popup-animation]')) {
+            const style = document.createElement('style');
+            style.setAttribute('data-popup-animation', 'true');
+            style.textContent = `
+                @keyframes popup {
+                    0% {
+                        transform: translate(-50%, -50%) scale(0.8);
+                        opacity: 0;
+                    }
+                    100% {
+                        transform: translate(-50%, -50%) scale(1);
+                        opacity: 1;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
         }
 
         // Initialize Office.js
