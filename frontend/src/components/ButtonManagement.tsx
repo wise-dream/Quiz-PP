@@ -23,15 +23,16 @@ export const ButtonManagement: React.FC<ButtonManagementProps> = ({ roomCode, te
     setLoading(true);
     setError(null);
     try {
-      const roomButtons = await buttonApi.getButtonsByRoom(roomCode);
-      const allButtons = await buttonApi.getAllButtons();
+      const roomButtons = await buttonApi.getButtonsByRoom(roomCode) || [];
+      const allButtons = await buttonApi.getAllButtons() || [];
       // Combine room buttons with unassigned buttons for display
-      const roomButtonMacs = new Set(roomButtons.map(b => b.macAddress));
-      const unassignedButtons = allButtons.filter(b => !roomButtonMacs.has(b.macAddress) && !b.roomCode);
-      setButtons([...roomButtons, ...unassignedButtons]);
+      const roomButtonMacs = new Set((roomButtons || []).map(b => b.macAddress));
+      const unassignedButtons = (allButtons || []).filter(b => !roomButtonMacs.has(b.macAddress) && !b.roomCode);
+      setButtons([...(roomButtons || []), ...unassignedButtons]);
     } catch (err: any) {
       setError(err.message || 'Failed to load buttons');
       console.error('Failed to load buttons:', err);
+      setButtons([]); // Set empty array on error
     } finally {
       setLoading(false);
     }

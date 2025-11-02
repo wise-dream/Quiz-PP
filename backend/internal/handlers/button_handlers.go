@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -65,19 +66,47 @@ func (bh *ButtonHandler) PressButton(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Record the button press
+	// Try to record the button press
 	button, err := bh.buttonService.RecordButtonPress(req.MACAddress)
 	if err != nil {
-		log.Printf("Button press error: %v", err)
-		response := ButtonPressResponse{
-			Success:   false,
-			Message: err.Error(),
-			Processed: false,
+		// If button doesn't exist, auto-register it
+		log.Printf("Button not found, attempting auto-registration: MAC=%s, Error=%v", req.MACAddress, err)
+		buttonID := req.ButtonID
+		if buttonID == "" {
+			buttonID = "1"
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(response)
-		return
+		
+		registeredButton, registerErr := bh.buttonService.RegisterButton(req.MACAddress, buttonID, "")
+		if registerErr != nil {
+			log.Printf("Auto-registration failed: %v", registerErr)
+			response := ButtonPressResponse{
+				Success:   false,
+				Message:   fmt.Sprintf("Button not found and auto-registration failed: %v", registerErr),
+				Processed: false,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+		
+		log.Printf("Button auto-registered: MAC=%s", req.MACAddress)
+		button = registeredButton
+		
+		// Now try to record the press again (this will work since button exists now)
+		button, err = bh.buttonService.RecordButtonPress(req.MACAddress)
+		if err != nil {
+			log.Printf("Button press error after registration: %v", err)
+			response := ButtonPressResponse{
+				Success:   false,
+				Message:   err.Error(),
+				Processed: false,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(response)
+			return
+		}
 	}
 
 	// Check if button is assigned to a team
@@ -224,6 +253,10 @@ func (bh *ButtonHandler) ListButtons(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	// Always return an array, even if empty
+	if buttons == nil {
+		buttons = []*models.HardwareButton{}
+	}
 	json.NewEncoder(w).Encode(buttons)
 }
 
@@ -245,6 +278,10 @@ func (bh *ButtonHandler) GetButtonsByRoom(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	// Always return an array, even if empty
+	if buttons == nil {
+		buttons = []*models.HardwareButton{}
+	}
 	json.NewEncoder(w).Encode(buttons)
 }
 
