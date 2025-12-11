@@ -1,20 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-           xsi:type="TaskPaneApp">
-  <Id>87654321-4321-4321-4321-210987654321</Id>
+           xsi:type="ContentApp">
+  <Id>12345678-1234-1234-1234-123456789012</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>WiseDream</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Quiz Host Panel"/>
-  <Description DefaultValue="Control quiz phases & timers"/>
+
+  <DisplayName DefaultValue="Quiz Content"/>
+  <Description DefaultValue="Live scoreboard on slide"/>
+
   <IconUrl DefaultValue="https://wise-dream.ru/quiz/addin/icon-32.png"/>
   <SupportUrl DefaultValue="https://wise-dream.ru/help"/>
+
   <Hosts>
     <Host Name="PowerPoint"/>
   </Hosts>
+
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://wise-dream.ru/quiz/addin/taskpane.html"/>
+    <SourceLocation DefaultValue="https://wise-dream.ru/quiz/addin/content.html"/>
+
+    <!-- Просим размер “под весь слайд” -->
+    <RequestedWidth>960</RequestedWidth>
+    <RequestedHeight>540</RequestedHeight>
   </DefaultSettings>
+
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>

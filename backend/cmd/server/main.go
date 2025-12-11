@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"powerpoint-quiz/internal/config"
 	"powerpoint-quiz/internal/db"
@@ -27,19 +28,36 @@ func main() {
 	defer db.Close()
 	log.Printf("Database initialized at: %s", dbPath)
 
+	// Determine data path for presentations (same directory as DB)
+	dataPath := os.Getenv("DB_PATH")
+	if dataPath == "" {
+		dataPath = "/srv/data"
+	} else {
+		// Extract directory from DB path
+		dataPath = filepath.Dir(dbPath)
+	}
+
 	// Initialize services
 	wsService := services.NewWebSocketService()
 	buttonService := services.NewButtonService(db.DB)
 	wsService.SetButtonService(buttonService)
 	go wsService.Run()
 
+	// Initialize presentation store
+	presentationStore, err := services.NewPresentationStore(dataPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize presentation store: %v", err)
+	}
+	log.Printf("Presentation store initialized at: %s", dataPath)
+
 	// Initialize handlers
 	wsHandler := handlers.NewWebSocketHandler(wsService)
 	staticHandler := handlers.NewStaticHandler()
 	buttonHandler := handlers.NewButtonHandler(wsService, buttonService)
+	presentationHandler := handlers.NewPresentationHandler(presentationStore)
 
 	// Setup routes
-	router := handlers.SetupRoutes(wsHandler, staticHandler, buttonHandler)
+	router := handlers.SetupRoutes(wsHandler, staticHandler, buttonHandler, presentationHandler)
 
 	// Configure server
 	server := &http.Server{

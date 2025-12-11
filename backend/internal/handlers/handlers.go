@@ -179,7 +179,7 @@ func (h *StaticHandler) ServeStatic(w http.ResponseWriter, r *http.Request) {
 }
 
 // SetupRoutes configures all HTTP routes
-func SetupRoutes(wsHandler *WebSocketHandler, staticHandler *StaticHandler, buttonHandler *ButtonHandler) *mux.Router {
+func SetupRoutes(wsHandler *WebSocketHandler, staticHandler *StaticHandler, buttonHandler *ButtonHandler, presentationHandler *PresentationHandler) *mux.Router {
 	r := mux.NewRouter()
 
 	// CORS middleware
@@ -216,6 +216,12 @@ func SetupRoutes(wsHandler *WebSocketHandler, staticHandler *StaticHandler, butt
 	r.HandleFunc("/api/button/room/{roomCode}", buttonHandler.GetButtonsByRoom).Methods("GET")
 	r.HandleFunc("/api/button/{macAddress}", buttonHandler.GetButton).Methods("GET")
 	r.HandleFunc("/api/button/{macAddress}", buttonHandler.DeleteButton).Methods("DELETE")
+
+	// Presentation API endpoints
+	r.HandleFunc("/quiz/api/presentation/link", presentationHandler.LinkPresentation).Methods("POST")
+	r.HandleFunc("/quiz/api/presentation/room", presentationHandler.GetRoomByPresentation).Methods("GET")
+	r.HandleFunc("/quiz/api/presentation/slide-snapshot", presentationHandler.SaveSlideSnapshot).Methods("POST")
+	r.HandleFunc("/quiz/api/presentation/slide-config", presentationHandler.SaveSlideConfig).Methods("POST")
 
 	// Health check endpoint
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

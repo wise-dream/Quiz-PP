@@ -1,8 +1,3 @@
-// File: src/main.cpp
-// ESP32-C3 SuperMini — Wi-Fi "кнопка": отправляет HTTP(S) запросы на сервер квиза.
-// Поддерживает открытые сети (SSID без пароля): если WIFI_PASS == "" → WiFi.begin(SSID).
-// Триггеры: физическая кнопка (BTN_PIN) и клавиша 's' в Serial.
-
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -16,7 +11,7 @@
 #define WIFI_PASS "YourPassword"
 #endif
 #ifndef SERVER_URL
-#define SERVER_URL "https://your-server.com"
+#define SERVER_URL "https://wise-dream.ru"
 #endif
 #ifndef BUTTON_ID
 #define BUTTON_ID "1"
@@ -25,17 +20,17 @@
 #define AUTO_SEND_INTERVAL_MS 0ul  // Выключено по умолчанию (только кнопка)
 #endif
 #ifndef BTN_PIN
-#define BTN_PIN 9  // GPIO9 на ESP32-C3 (можно изменить)
+#define BTN_PIN 5  // GPIO5 на ESP32-C3 (можно изменить)
 #endif
 #ifndef USE_TLS_INSECURE
 #define USE_TLS_INSECURE 1  // Для самоподписанных сертификатов
 #endif
 
 #ifdef AUTH_BEARER
-#define HAS_AUTH_BEARER 1
+#define HAS_AUTH_BEARER 0
 #endif
 #ifdef X_API_KEY
-#define HAS_X_API_KEY 1
+#define HAS_X_API_KEY 0
 #endif
 
 const unsigned long DEBOUNCE_MS = 50;  // Защита от дребезга (мс) - как в рабочем примере
@@ -45,6 +40,13 @@ int currentButtonState = HIGH;  // Добавлено для правильно�
 unsigned long lastDebounceTime = 0;  // Изменено с lastBtnChange для совместимости
 unsigned long lastPressTime = 0;
 const unsigned long PRESS_COOLDOWN_MS = 500;  // Минимальный интервал между нажатиями
+
+// Глобальные объекты для переиспользования соединения (keep-alive)
+WiFiClientSecure* secureClient = nullptr;
+WiFiClient* plainClient = nullptr;
+HTTPClient* httpClient = nullptr;
+bool connectionInitialized = false;
+String endpointUrl = "";
 
 // Получить MAC адрес в формате строки
 String getMacAddress() {
@@ -74,6 +76,11 @@ void connectWiFiBlocking() {
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.persistent(false);
+  
+  // Отключаем сон Wi-Fi для минимальной задержки
+  WiFi.setSleep(false);
+  Serial.println("Wi-Fi: режим сна отключен (WIFI_PS_NONE)");
+  
   wifiBeginSmart();
 
   unsigned long t0 = millis();
@@ -105,7 +112,7 @@ bool ensureWiFi() {
 
 void addCommonHeaders(HTTPClient& http) {
   http.setUserAgent("ESP32C3-Button/1.0");
-  http.addHeader("Connection", "close");
+  // УБРАЛИ Connection: close - используем keep-alive для переиспользования соединения
 #ifdef HAS_AUTH_BEARER
   http.addHeader("Authorization", String("Bearer ") + AUTH_BEARER);
 #endif
@@ -114,7 +121,95 @@ void addCommonHeaders(HTTPClient& http) {
 #endif
 }
 
-// Отправка нажатия кнопки на сервер
+// Инициализация HTTP-соединения один раз (keep-alive)
+bool initializeHttpConnection() {
+  if (connectionInitialized && httpClient != nullptr) {
+    return true;  // Уже инициализировано
+  }
+
+  // Освобождаем старые объекты, если есть
+  if (httpClient) {
+    httpClient->end();
+    delete httpClient;
+    httpClient = nullptr;
+  }
+  if (secureClient) {
+    delete secureClient;
+    secureClient = nullptr;
+  }
+  if (plainClient) {
+    delete plainClient;
+    plainClient = nullptr;
+  }
+
+  if (!ensureWiFi()) {
+    Serial.println("[ERROR] ❌ Нет Wi-Fi подключения для инициализации соединения.");
+    return false;
+  }
+
+  endpointUrl = String(SERVER_URL) + "/quiz/api/button/press";
+  bool isHttps = endpointUrl.startsWith("https://");
+
+  httpClient = new HTTPClient();
+  httpClient->setTimeout(10000);
+  httpClient->setReuse(true);  // Включаем переиспользование соединения
+
+  bool beginSuccess = false;
+  if (isHttps) {
+    secureClient = new WiFiClientSecure();
+#if USE_TLS_INSECURE
+    secureClient->setInsecure();
+#endif
+    secureClient->setNoDelay(true);  // Отключаем Nagle для минимальной задержки
+    beginSuccess = httpClient->begin(*secureClient, endpointUrl);
+    Serial.println("[HTTP] Инициализация HTTPS соединения с keep-alive...");
+  } else {
+    plainClient = new WiFiClient();
+    plainClient->setNoDelay(true);  // Отключаем Nagle для минимальной задержки
+    beginSuccess = httpClient->begin(*plainClient, endpointUrl);
+    Serial.println("[HTTP] Инициализация HTTP соединения с keep-alive...");
+  }
+
+  if (!beginSuccess) {
+    Serial.println("[ERROR] ❌ HTTP begin() failed при инициализации.");
+    delete httpClient;
+    httpClient = nullptr;
+    if (secureClient) {
+      delete secureClient;
+      secureClient = nullptr;
+    }
+    if (plainClient) {
+      delete plainClient;
+      plainClient = nullptr;
+    }
+    return false;
+  }
+
+  // Устанавливаем заголовки один раз
+  addCommonHeaders(*httpClient);
+  httpClient->addHeader("Content-Type", "application/json");
+
+  connectionInitialized = true;
+  Serial.println("[HTTP] ✅ Соединение инициализировано с keep-alive. TLS handshake выполнен один раз.");
+  return true;
+}
+
+// Проверка и переподключение при необходимости
+bool ensureHttpConnection() {
+  if (!connectionInitialized) {
+    return initializeHttpConnection();
+  }
+
+  // Проверяем, что соединение всё ещё живое
+  if (httpClient == nullptr) {
+    connectionInitialized = false;
+    return initializeHttpConnection();
+  }
+
+  return true;
+}
+
+// Отправка нажатия кнопки на сервер (с переиспользованием соединения)
 int sendButtonPress() {
   unsigned long requestStartTime = millis();
   String separator = String("============================================================"); // 60 символов
@@ -123,13 +218,6 @@ int sendButtonPress() {
   Serial.println(separator);
   Serial.println("[HTTP REQUEST] ========== Начало запроса ==========");
   
-  if (!ensureWiFi()) {
-    Serial.println("[ERROR] ❌ Нет Wi-Fi подключения, пропускаю отправку.");
-    Serial.println(separator);
-    Serial.println();
-    return -1;
-  }
-
   // Проверка кулдауна между нажатиями
   unsigned long now = millis();
   if (lastPressTime > 0 && (now - lastPressTime) < PRESS_COOLDOWN_MS) {
@@ -140,8 +228,15 @@ int sendButtonPress() {
   }
   lastPressTime = now;
 
+  // Обеспечиваем наличие переиспользуемого соединения
+  if (!ensureHttpConnection()) {
+    Serial.println("[ERROR] ❌ Не удалось инициализировать/поддерживать HTTP соединение.");
+    Serial.println(separator);
+    Serial.println();
+    return -1;
+  }
+
   String macAddress = getMacAddress();
-  String endpoint = String(SERVER_URL) + "/quiz/api/button/press";
   
   // Формируем JSON payload согласно API бэкенда
   String payload = String("{\"macAddress\":\"") + macAddress +
@@ -150,15 +245,16 @@ int sendButtonPress() {
   // Подробное логирование запроса
   Serial.println("[REQUEST INFO]");
   Serial.printf("  Method: POST\n");
-  Serial.printf("  URL: %s\n", endpoint.c_str());
-  Serial.printf("  Protocol: %s\n", endpoint.startsWith("https://") ? "HTTPS" : "HTTP");
+  Serial.printf("  URL: %s\n", endpointUrl.c_str());
+  Serial.printf("  Protocol: %s\n", endpointUrl.startsWith("https://") ? "HTTPS" : "HTTP");
+  Serial.printf("  Connection: keep-alive (переиспользуется)\n");
   Serial.printf("  MAC Address: %s\n", macAddress.c_str());
   Serial.printf("  Button ID: %s\n", BUTTON_ID);
   Serial.printf("  Timestamp: %lu ms\n", now);
   
   Serial.println("\n[REQUEST HEADERS]");
   Serial.println("  User-Agent: ESP32C3-Button/1.0");
-  Serial.println("  Connection: close");
+  Serial.println("  Connection: keep-alive");
   Serial.println("  Content-Type: application/json");
 #ifdef HAS_AUTH_BEARER
   Serial.printf("  Authorization: Bearer %s\n", AUTH_BEARER);
@@ -174,97 +270,55 @@ int sendButtonPress() {
   String response = "";
   unsigned long responseTime = 0;
 
-  Serial.println("\n[NETWORK] Отправка запроса...");
+  Serial.println("\n[NETWORK] Отправка запроса через переиспользуемое соединение...");
   
-  if (endpoint.startsWith("https://")) {
-    WiFiClientSecure client;
-#if USE_TLS_INSECURE
-    client.setInsecure();  // Для самоподписанных сертификатов
-    Serial.println("  TLS: Insecure mode (самоподписанный сертификат)");
-#endif
-    HTTPClient http;
-    http.setTimeout(10000);  // 10 секунд таймаут
-    if (http.begin(client, endpoint)) {
-      addCommonHeaders(http);
-      http.addHeader("Content-Type", "application/json");
-      
-      unsigned long sendStart = millis();
-      httpCode = http.POST(payload);
-      responseTime = millis() - sendStart;
-      response = http.getString();
-      
-      Serial.println("\n[RESPONSE]");
-      Serial.printf("  HTTP Status Code: %d\n", httpCode);
-      Serial.printf("  Response Time: %lu ms\n", responseTime);
-      Serial.printf("  Response Size: %d bytes\n", response.length());
-      
-      // Логируем заголовки ответа, если доступны
-      int headerCount = http.headers();
-      if (headerCount > 0) {
-        Serial.println("\n[RESPONSE HEADERS]");
-        for (int i = 0; i < headerCount; i++) {
-          String headerName = http.headerName(i);
-          String headerValue = http.header(i);
-          Serial.printf("  %s: %s\n", headerName.c_str(), headerValue.c_str());
-        }
-      }
-      
-      Serial.println("\n[RESPONSE BODY]");
-      if (response.length() > 0) {
-        Serial.printf("  %s\n", response.c_str());
-      } else {
-        Serial.println("  (пусто)");
-      }
-      
-      http.end();
-    } else {
-      Serial.println("[ERROR] ❌ HTTP begin() failed (HTTPS).");
-      Serial.println(separator);
-      Serial.println();
-      return -1;
+  // Используем уже инициализированное соединение - НЕ создаём новое!
+  unsigned long sendStart = millis();
+  httpCode = httpClient->POST(payload);
+  responseTime = millis() - sendStart;
+  response = httpClient->getString();
+  
+  // НЕ вызываем httpClient->end() - соединение остаётся открытым для следующего запроса!
+  
+  Serial.println("\n[RESPONSE]");
+  Serial.printf("  HTTP Status Code: %d\n", httpCode);
+  Serial.printf("  Response Time: %lu ms (только POST, без TLS handshake)\n", responseTime);
+  Serial.printf("  Response Size: %d bytes\n", response.length());
+  
+  // Логируем заголовки ответа, если доступны
+  int headerCount = httpClient->headers();
+  if (headerCount > 0) {
+    Serial.println("\n[RESPONSE HEADERS]");
+    for (int i = 0; i < headerCount; i++) {
+      String headerName = httpClient->headerName(i);
+      String headerValue = httpClient->header(i);
+      Serial.printf("  %s: %s\n", headerName.c_str(), headerValue.c_str());
     }
+  }
+  
+  Serial.println("\n[RESPONSE BODY]");
+  if (response.length() > 0) {
+    Serial.printf("  %s\n", response.c_str());
   } else {
-    WiFiClient client;
-    HTTPClient http;
-    http.setTimeout(10000);
-    if (http.begin(client, endpoint)) {
-      addCommonHeaders(http);
-      http.addHeader("Content-Type", "application/json");
-      
-      unsigned long sendStart = millis();
-      httpCode = http.POST(payload);
-      responseTime = millis() - sendStart;
-      response = http.getString();
-      
-      Serial.println("\n[RESPONSE]");
-      Serial.printf("  HTTP Status Code: %d\n", httpCode);
-      Serial.printf("  Response Time: %lu ms\n", responseTime);
-      Serial.printf("  Response Size: %d bytes\n", response.length());
-      
-      // Логируем заголовки ответа, если доступны
-      int headerCount = http.headers();
-      if (headerCount > 0) {
-        Serial.println("\n[RESPONSE HEADERS]");
-        for (int i = 0; i < headerCount; i++) {
-          String headerName = http.headerName(i);
-          String headerValue = http.header(i);
-          Serial.printf("  %s: %s\n", headerName.c_str(), headerValue.c_str());
-        }
-      }
-      
-      Serial.println("\n[RESPONSE BODY]");
-      if (response.length() > 0) {
-        Serial.printf("  %s\n", response.c_str());
-      } else {
-        Serial.println("  (пусто)");
-      }
-      
-      http.end();
-    } else {
-      Serial.println("[ERROR] ❌ HTTP begin() failed (HTTP).");
-      Serial.println(separator);
-      Serial.println();
-      return -1;
+    Serial.println("  (пусто)");
+  }
+
+  // Если получили ошибку сети - сбрасываем соединение для переподключения
+  if (httpCode < 0) {
+    Serial.println("[WARNING] ⚠️  Обнаружена ошибка сети, переподключаю соединение...");
+    connectionInitialized = false;
+    if (httpClient) {
+      httpClient->end();
+      delete httpClient;
+      httpClient = nullptr;
+    }
+    if (secureClient) {
+      delete secureClient;
+      secureClient = nullptr;
+    }
+    if (plainClient) {
+      delete plainClient;
+      plainClient = nullptr;
     }
   }
 
@@ -294,7 +348,7 @@ int sendButtonPress() {
       Serial.println("          Ошибка на сервере");
     } else if (httpCode < 0) {
       Serial.printf("  Status: ❌ ERROR - Network error (code: %d)\n", httpCode);
-      Serial.println("          Возможные причины: нет подключения, таймаут");
+      Serial.println("          Соединение будет переподключено при следующем запросе");
     } else {
       Serial.printf("  Status: ⚠️  UNKNOWN - HTTP %d\n", httpCode);
     }
@@ -345,6 +399,15 @@ void setup() {
   connectWiFiBlocking();
   setupButtonIfAny();
   
+  // Инициализируем HTTP-соединение один раз с keep-alive
+  Serial.println("\nИнициализация HTTP-соединения с keep-alive...");
+  if (initializeHttpConnection()) {
+    Serial.println("✅ HTTP-соединение готово. TLS handshake выполнен.");
+  } else {
+    Serial.println("⚠️  Предупреждение: не удалось инициализировать соединение сейчас.");
+    Serial.println("    Оно будет создано при первом нажатии кнопки.");
+  }
+  
   Serial.println("\n=== Готово ===");
   Serial.println("Команды:");
   Serial.println("  - Нажмите кнопку для отправки нажатия");
@@ -374,6 +437,13 @@ void loop() {
       Serial.println("[SERIAL] Переподключаю Wi-Fi...");
       WiFi.disconnect();
       connectWiFiBlocking();
+      // Переинициализируем HTTP-соединение после переподключения Wi-Fi
+      connectionInitialized = false;
+      if (initializeHttpConnection()) {
+        Serial.println("[SERIAL] ✅ HTTP-соединение переинициализировано.");
+      } else {
+        Serial.println("[SERIAL] ⚠️  Не удалось переинициализировать HTTP-соединение.");
+      }
     } else if (c == 'm' || c == 'M') {
       Serial.printf("[INFO] MAC Address: %s\n", WiFi.macAddress().c_str());
       Serial.printf("[INFO] IP Address: %s\n", WiFi.localIP().toString().c_str());

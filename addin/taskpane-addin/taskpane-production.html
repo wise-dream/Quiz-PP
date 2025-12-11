@@ -194,14 +194,6 @@
     </div>
   </div>
 
-  <div class="row">
-    <button data-act="start" data-delay="3000">Start 3s</button>
-    <button data-act="start">Start now</button>
-    <button data-act="active">Activate players</button>
-    <button data-act="finish">Finish</button>
-    <button data-act="reset">Reset</button>
-  </div>
-
   <div id="phase-info" class="phase-info" style="display:none">
     <strong>Фаза:</strong> <span id="current-phase">—</span><br>
     <strong>Включение:</strong> <span id="enable-time">—</span>
@@ -212,12 +204,42 @@
     <div id="players-content"></div>
   </div>
 
+  <!-- Секция управления физическими кнопками -->
+  <div class="quiz-controls" id="buttons-management-section" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3>🔘 Физические кнопки</h3>
+      <div style="display:flex;gap:4px">
+        <button id="refresh-buttons" style="padding:4px 8px;font-size:11px" title="Обновить список">🔄</button>
+        <button id="show-add-button" style="padding:4px 8px;font-size:11px" title="Добавить кнопку">➕</button>
+      </div>
+    </div>
+    <div id="add-button-form" style="display:none;margin:6px 0;padding:8px;background:#f8f9fa;border-radius:4px;border:1px solid #dee2e6">
+      <div style="margin:4px 0">
+        <label style="font-size:11px;display:block;margin-bottom:2px">MAC адрес:</label>
+        <input id="new-button-mac" type="text" placeholder="AA:BB:CC:DD:EE:FF" style="width:100%;padding:4px;font-size:11px;font-family:monospace">
+      </div>
+      <div style="margin:4px 0">
+        <label style="font-size:11px;display:block;margin-bottom:2px">Название (опционально):</label>
+        <input id="new-button-name" type="text" placeholder="Кнопка команды 1" style="width:100%;padding:4px;font-size:11px">
+      </div>
+      <div style="display:flex;gap:4px;margin-top:6px">
+        <button id="confirm-add-button" style="flex:1;background:#28a745;color:white;border:none;padding:6px;font-size:11px;border-radius:4px">Добавить</button>
+        <button id="cancel-add-button" style="flex:1;background:#6c757d;color:white;border:none;padding:6px;font-size:11px;border-radius:4px">Отмена</button>
+      </div>
+    </div>
+    <div id="buttons-list" style="margin-top:6px;max-height:200px;overflow-y:auto">
+      <div id="buttons-content" style="font-size:11px"></div>
+    </div>
+    <div id="buttons-error" style="display:none;margin-top:6px;padding:6px;background:#f8d7da;color:#721c24;border-radius:4px;font-size:10px"></div>
+  </div>
+
   <!-- Модалка для подтверждения ответа -->
   <div id="answer-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000">
-    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;min-width:300px">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px;border-radius:8px;min-width:300px;max-width:90%">
       <h3 style="margin:0 0 15px 0">Подтверждение ответа</h3>
-      <p><strong>Первый ответ:</strong> <span id="first-answerer">—</span></p>
-      <p><strong>Ответ:</strong> <span id="player-answer">—</span></p>
+      <div id="hardware-button-info" style="display:none;margin:15px 0;padding:12px;border-radius:8px;text-align:center;color:white;font-size:18px;font-weight:bold"></div>
+      <p id="regular-answer-info" style="margin:8px 0"><strong>Первый ответ:</strong> <span id="first-answerer">—</span></p>
+      <p id="regular-answer-text" style="margin:8px 0"><strong>Ответ:</strong> <span id="player-answer">—</span></p>
       <div style="margin:15px 0">
         <label>Количество очков:</label>
         <input id="points-input" type="number" value="10" min="0" max="100" style="width:80px;margin-left:10px">
@@ -279,6 +301,107 @@
   const $teamsList = document.getElementById('teams-list');
   const $teamsContent = document.getElementById('teams-content');
   const $teamColorBtns = document.querySelectorAll('.team-color-btn');
+  
+  // Button management elements
+  const $buttonsSection = document.getElementById('buttons-management-section');
+  const $buttonsContent = document.getElementById('buttons-content');
+  const $buttonsError = document.getElementById('buttons-error');
+  const $refreshButtons = document.getElementById('refresh-buttons');
+  const $showAddButton = document.getElementById('show-add-button');
+  const $addButtonForm = document.getElementById('add-button-form');
+  const $newButtonMac = document.getElementById('new-button-mac');
+  const $newButtonName = document.getElementById('new-button-name');
+  const $confirmAddButton = document.getElementById('confirm-add-button');
+  const $cancelAddButton = document.getElementById('cancel-add-button');
+  const $hardwareButtonInfo = document.getElementById('hardware-button-info');
+  const $regularAnswerInfo = document.getElementById('regular-answer-info');
+  const $regularAnswerText = document.getElementById('regular-answer-text');
+  
+  let allButtons = [];
+  let buttonsLoading = false;
+
+  // Get API base URL
+  function getApiUrl() {
+    return 'https://wise-dream.ru';
+  }
+
+  // Button API functions
+  const buttonApi = {
+    registerButton: async (macAddress, buttonId = '1', name = '') => {
+      const response = await fetch(`${getApiUrl()}/quiz/api/button/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ macAddress, buttonId, name })
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || `HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
+
+    getAllButtons: async () => {
+      const response = await fetch(`${getApiUrl()}/quiz/api/button/list`);
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || `HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      // Normalize response (handle both arrays and objects)
+      if (Array.isArray(data)) return data;
+      if (typeof data === 'object') {
+        const keys = Object.keys(data);
+        if (keys.length > 0 && keys.every(k => /^\d+$/.test(k))) {
+          return keys.map(key => data[key]).filter(Boolean);
+        }
+        if (data.macAddress || data.id) return [data];
+        return Object.values(data).filter(item => item && (item.macAddress || item.id));
+      }
+      return [];
+    },
+
+    assignButton: async (macAddress, roomCode, teamId) => {
+      const response = await fetch(`${getApiUrl()}/quiz/api/button/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ macAddress, roomCode, teamId })
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || `HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
+
+    unassignButton: async (macAddress) => {
+      const response = await fetch(`${getApiUrl()}/quiz/api/button/unassign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ macAddress })
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || `HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    },
+
+    deleteButton: async (macAddress) => {
+      const response = await fetch(`${getApiUrl()}/quiz/api/button/${encodeURIComponent(macAddress)}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || `HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    }
+  };
+
+  function formatMAC(mac) {
+    const cleaned = mac.replace(/[^0-9A-F]/gi, '');
+    return cleaned.match(/.{1,2}/g)?.join(':').toUpperCase() || mac.toUpperCase();
+  }
 
   function updateStatus(text, className) {
     $status.textContent = text;
@@ -393,11 +516,26 @@
           } else if (msg.type === 'state') {
             updatePhaseInfo(msg.data);
           } else if (msg.type === 'answer_received') {
-            // For answer_received, the data is in the message itself, not in msg.data
-            showAnswerModal({
-              userId: msg.userId,
-              answer: msg.answer
-            });
+            // For answer_received, handle both regular answers and hardware button presses
+            const answerData = msg.data || msg;
+            if (msg.teamId && msg.teamName) {
+              // This is a hardware button press
+              const teamColor = currentRoomState?.teams?.[msg.teamId]?.color || msg.teamColor || '#3b82f6';
+              showAnswerModal({
+                userId: `team_${msg.teamId}`,
+                answer: 'Нажата физическая кнопка',
+                teamId: msg.teamId,
+                teamName: msg.teamName,
+                teamColor: teamColor,
+                isHardwareButton: true
+              });
+            } else {
+              // This is a regular player answer
+              showAnswerModal({
+                userId: msg.userId,
+                answer: msg.answer
+              });
+            }
           } else if (msg.type === 'team_created') {
             console.log('Team created:', msg.data);
             updateStatus('Команда создана!', 'connected');
@@ -472,11 +610,13 @@
             const answerData = msg.data || msg;
             if (msg.teamId && msg.teamName) {
               // Это нажатие физической кнопки - показать модалку с командой
+              const teamColor = currentRoomState?.teams?.[msg.teamId]?.color || msg.teamColor || '#3b82f6';
               showAnswerModal({
                 userId: `team_${msg.teamId}`,
                 answer: 'Нажата физическая кнопка',
                 teamId: msg.teamId,
                 teamName: msg.teamName,
+                teamColor: teamColor,
                 isHardwareButton: true
               });
             } else {
@@ -523,6 +663,14 @@
     updateButtonStates(state);
     updatePlayersList(state);
     updateTeamsList(state);
+    
+    // Show buttons management section when connected as admin
+    if (ws && ws.readyState === 1 && (currentRoomCode || $room.value.trim())) {
+      $buttonsSection.style.display = 'block';
+      if (allButtons.length === 0) {
+        loadButtons();
+      }
+    }
   }
 
   function updateButtonStates(state) {
@@ -596,6 +744,153 @@
     } else {
       $teamsList.style.display = 'none';
     }
+    // Update buttons list after teams update
+    if ($buttonsSection.style.display !== 'none') {
+      loadButtons();
+    }
+  }
+
+  // Button management functions
+  async function loadButtons() {
+    if (buttonsLoading) return;
+    buttonsLoading = true;
+    $buttonsError.style.display = 'none';
+    $buttonsContent.innerHTML = '<div style="padding:8px;text-align:center;color:#666;font-size:11px">Загрузка...</div>';
+    
+    try {
+      allButtons = await buttonApi.getAllButtons();
+      renderButtons();
+    } catch (error) {
+      console.error('Failed to load buttons:', error);
+      $buttonsError.textContent = error.message || 'Ошибка загрузки кнопок';
+      $buttonsError.style.display = 'block';
+      $buttonsContent.innerHTML = '';
+    } finally {
+      buttonsLoading = false;
+    }
+  }
+
+  function renderButtons() {
+    if (!allButtons || allButtons.length === 0) {
+      $buttonsContent.innerHTML = '<div style="padding:8px;text-align:center;color:#666;font-size:11px">Кнопки не найдены</div>';
+      return;
+    }
+
+    const roomCode = currentRoomCode || $room.value.trim();
+    const teams = currentRoomState?.teams || {};
+
+    $buttonsContent.innerHTML = allButtons.map(button => {
+      const isAssignedToCurrentRoom = button.roomCode === roomCode && button.teamId;
+      const assignedTeam = isAssignedToCurrentRoom && button.teamId && teams[button.teamId] ? teams[button.teamId] : null;
+      const showTeamInfo = button.roomCode === roomCode && button.teamName;
+
+      return `
+        <div style="margin:4px 0;padding:6px;border:1px solid ${isAssignedToCurrentRoom ? '#28a745' : '#dee2e6'};border-radius:4px;background:${isAssignedToCurrentRoom ? '#d4edda' : '#f8f9fa'}">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:4px">
+            <div style="flex:1">
+              <div style="font-weight:bold;margin-bottom:2px;font-size:12px">
+                ${button.name || '<span style="color:#999;font-style:italic">Без названия</span>'}
+                ${!button.isActive ? '<span style="margin-left:4px;padding:1px 4px;background:#f8d7da;color:#721c24;border-radius:3px;font-size:9px">Неактивна</span>' : ''}
+              </div>
+              <div style="font-size:10px;color:#666;font-family:monospace;margin-bottom:2px">
+                MAC: ${formatMAC(button.macAddress)}
+              </div>
+              ${assignedTeam ? `
+                <div style="display:flex;align-items:center;gap:4px;margin-top:2px">
+                  <div style="width:10px;height:10px;border-radius:50%;background:${assignedTeam.color}"></div>
+                  <span style="font-size:10px">Привязана к: <strong>${assignedTeam.name}</strong></span>
+                </div>
+              ` : showTeamInfo ? `
+                <div style="font-size:10px;margin-top:2px">Привязана к: <strong>${button.teamName}</strong></div>
+              ` : button.roomCode && button.roomCode !== roomCode ? `
+                <div style="font-size:10px;color:#999;margin-top:2px">Комната: ${button.roomCode}</div>
+              ` : `
+                <div style="font-size:10px;color:#999;margin-top:2px">Не привязана</div>
+              `}
+              ${button.pressCount > 0 ? `
+                <div style="font-size:9px;color:#999;margin-top:2px">
+                  Нажатий: ${button.pressCount}
+                  ${button.lastPress ? ` • ${new Date(button.lastPress).toLocaleString('ru-RU')}` : ''}
+                </div>
+              ` : ''}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
+              ${isAssignedToCurrentRoom ? `
+                <button onclick="handleUnassignButton('${button.macAddress}')" style="padding:3px 6px;font-size:9px;background:#ffc107;color:#000;border:none;border-radius:3px;cursor:pointer" title="Отвязать">Отвязать</button>
+              ` : button.roomCode && button.roomCode !== roomCode ? `
+                <select onchange="if(this.value) handleAssignButton('${button.macAddress}', this.value)" style="font-size:9px;padding:3px;border:1px solid #007bff;border-radius:3px;background:#e7f3ff;margin-bottom:2px">
+                  <option value="">Переназначить...</option>
+                  ${Object.values(teams).map(team => `<option value="${team.id}">${team.name}</option>`).join('')}
+                </select>
+              ` : `
+                <select onchange="if(this.value) handleAssignButton('${button.macAddress}', this.value)" style="font-size:9px;padding:3px;border:1px solid #ccc;border-radius:3px;margin-bottom:2px" ${Object.keys(teams).length === 0 ? 'disabled' : ''}>
+                  <option value="">Привязать...</option>
+                  ${Object.values(teams).map(team => `<option value="${team.id}">${team.name}</option>`).join('')}
+                </select>
+              `}
+              <button onclick="handleDeleteButton('${button.macAddress}')" style="padding:3px 6px;font-size:9px;background:#dc3545;color:white;border:none;border-radius:3px;cursor:pointer" title="Удалить">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function handleAddButton() {
+    const mac = $newButtonMac.value.trim();
+    if (!mac) {
+      $buttonsError.textContent = 'MAC адрес обязателен';
+      $buttonsError.style.display = 'block';
+      return;
+    }
+
+    try {
+      await buttonApi.registerButton(mac, '1', $newButtonName.value.trim());
+      $newButtonMac.value = '';
+      $newButtonName.value = '';
+      $addButtonForm.style.display = 'none';
+      await loadButtons();
+    } catch (error) {
+      $buttonsError.textContent = error.message || 'Ошибка регистрации кнопки';
+      $buttonsError.style.display = 'block';
+    }
+  }
+
+  async function handleAssignButton(macAddress, teamId) {
+    const roomCode = currentRoomCode || $room.value.trim();
+    if (!roomCode) {
+      alert('Нет активной комнаты');
+      return;
+    }
+
+    try {
+      await buttonApi.assignButton(macAddress, roomCode, teamId);
+      await loadButtons();
+    } catch (error) {
+      alert('Ошибка привязки: ' + (error.message || 'Неизвестная ошибка'));
+    }
+  }
+
+  async function handleUnassignButton(macAddress) {
+    if (!confirm('Отвязать кнопку от команды?')) return;
+
+    try {
+      await buttonApi.unassignButton(macAddress);
+      await loadButtons();
+    } catch (error) {
+      alert('Ошибка отвязки: ' + (error.message || 'Неизвестная ошибка'));
+    }
+  }
+
+  async function handleDeleteButton(macAddress) {
+    if (!confirm('Удалить кнопку?')) return;
+
+    try {
+      await buttonApi.deleteButton(macAddress);
+      await loadButtons();
+    } catch (error) {
+      alert('Ошибка удаления: ' + (error.message || 'Неизвестная ошибка'));
+    }
   }
 
   function createTeam() {
@@ -639,24 +934,15 @@
   function showAnswerModal(answerData) {
     // Handle hardware button press (physical button)
     if (answerData.isHardwareButton && answerData.teamName) {
-      $firstAnswerer.textContent = 'Нажата физическая кнопка';
-      $playerAnswer.textContent = 'Команда ответила';
+      // Hide regular answer info, show hardware button info
+      $regularAnswerInfo.style.display = 'none';
+      $regularAnswerText.style.display = 'none';
+      $hardwareButtonInfo.style.display = 'block';
       
-      // Show team info prominently
-      const teamInfo = document.createElement('div');
-      teamInfo.style.cssText = 'margin-top: 12px; padding: 12px; background: ' + 
-        (currentRoomState?.teams?.[answerData.teamId]?.color || '#3b82f6') + 
-        '; color: white; border-radius: 8px; font-size: 18px; font-weight: bold; text-align: center;';
-      teamInfo.textContent = 'Команда: ' + answerData.teamName;
-      
-      // Remove existing team info if any
-      const existingTeamInfo = $answerModal.querySelector('.team-info');
-      if (existingTeamInfo) {
-        existingTeamInfo.remove();
-      }
-      
-      teamInfo.className = 'team-info';
-      $firstAnswerer.parentNode.insertBefore(teamInfo, $firstAnswerer.nextSibling);
+      const teamColor = answerData.teamColor || currentRoomState?.teams?.[answerData.teamId]?.color || '#3b82f6';
+      $hardwareButtonInfo.style.background = teamColor;
+      $hardwareButtonInfo.textContent = '🔘 Нажата физическая кнопка!\n\nКоманда: ' + answerData.teamName;
+      $hardwareButtonInfo.style.whiteSpace = 'pre-line';
       
       $pointsInput.value = 10;
       $answerModal.style.display = 'block';
@@ -664,6 +950,10 @@
     }
     
     // Handle regular player answer
+    $hardwareButtonInfo.style.display = 'none';
+    $regularAnswerInfo.style.display = 'block';
+    $regularAnswerText.style.display = 'block';
+    
     let playerName = 'Неизвестно';
     let teamName = '';
     let teamColor = '';
@@ -784,6 +1074,31 @@
   $answerCancel.onclick = () => {
     hideAnswerModal();
   };
+
+  // Button management event handlers
+  $refreshButtons.onclick = () => {
+    loadButtons();
+  };
+
+  $showAddButton.onclick = () => {
+    $addButtonForm.style.display = $addButtonForm.style.display === 'none' ? 'block' : 'none';
+  };
+
+  $cancelAddButton.onclick = () => {
+    $addButtonForm.style.display = 'none';
+    $newButtonMac.value = '';
+    $newButtonName.value = '';
+    $buttonsError.style.display = 'none';
+  };
+
+  $confirmAddButton.onclick = () => {
+    handleAddButton();
+  };
+
+  // Make button handler functions globally available for onclick handlers
+  window.handleAssignButton = handleAssignButton;
+  window.handleUnassignButton = handleUnassignButton;
+  window.handleDeleteButton = handleDeleteButton;
 
   Office.onReady(() => {
     // Инициализируем состояние кнопок при загрузке

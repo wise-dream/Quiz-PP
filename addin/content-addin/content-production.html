@@ -9,39 +9,165 @@
                  script-src 'self' https: 'unsafe-inline'; frame-ancestors 'self' https://*.office.com https://*.officeapps.live.com https://*.sharepoint.com;">
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <style>
-    html,body {margin:0;padding:12px;font:14px/1.4 system-ui,Segoe UI,Roboto,Arial;max-width:300px;margin:0 auto}
-    .controls {margin-bottom:16px;padding:12px;background:#f8f9fa;border-radius:6px;border:1px solid #dee2e6;display:flex;flex-direction:column;gap:8px}
-    .controls input {padding:6px 8px;border:1px solid #ced4da;border-radius:4px;width:100%;box-sizing:border-box}
-    .controls button {padding:6px 12px;background:#007bff;color:white;border:none;border-radius:4px;cursor:pointer;width:100%;box-sizing:border-box}
-    .controls button:hover {background:#0056b3}
-    .banner {margin:8px 0;padding:8px;border-radius:6px;background:#e8f5ff;border-left:4px solid #0d6efd}
-    .status {margin-bottom:8px;padding:4px 8px;border-radius:4px}
-    .status.connected {background:#d4edda;color:#155724}
-    .status.disconnected {background:#f8d7da;color:#721c24}
-    .status.connecting {background:#fff3cd;color:#856404}
-    .teams-grid {display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:16px}
-    .team-card {padding:8px;border-radius:6px;border:2px solid #dee2e6;cursor:pointer;transition:all 0.2s}
-    .team-name {font-size:16px;font-weight:600;margin-bottom:4px}
-    .team-score {font-size:16px;font-weight:bold;color:#007bff}
-    .team-players {font-size:11px;color:#6c757d;margin-top:4px}
-    .team-card:hover {border-color:#007bff;box-shadow:0 2px 4px rgba(0,123,255,0.2)}
-    .team-card.active {border-color:#28a745;background:#f8fff9}
-    .team-card.answering {background:#d4edda;border-color:#28a745;animation:pulse 1s infinite}
-    .modal {position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center}
-    .modal-content {background:white;border-radius:8px;padding:0;max-width:300px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.3)}
-    .modal-header {padding:20px;border-bottom:1px solid #dee2e6;display:flex;justify-content:space-between;align-items:center}
-    .modal-header h3 {margin:0;color:#333}
-    .close-btn {background:none;border:none;font-size:24px;cursor:pointer;color:#999;padding:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center}
-    .close-btn:hover {color:#333}
-    .modal-body {padding:20px;text-align:center}
-    .answering-team {font-size:24px;font-weight:bold;padding:20px;border-radius:6px;background:#f8f9fa}
-    @keyframes pulse {0%,100%{opacity:1}50%{opacity:0.7}}
-    table {border-collapse:collapse;width:100%}
-    th,td {border:1px solid #ddd;padding:6px 8px}
-    thead th {position:sticky;top:0;background:#f5f5f5}
-    .first {font-weight:600;background:#e8f5e8}
-    .fs {color:#c00}
-    .hidden {display:none}
+    html,body {
+      margin: 0;
+      padding: 12px;
+      font: 14px/1.4 system-ui,Segoe UI,Roboto,Arial;
+      box-sizing: border-box;
+      height: 100%;
+      background: transparent; /* важно для работы поверх слайда */
+    }
+    .controls {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #dee2e6;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .controls input {
+      padding: 6px 8px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .controls button {
+      padding: 6px 12px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .controls button:hover { background:#0056b3 }
+    .banner {
+      margin: 8px 0;
+      padding: 8px;
+      border-radius: 6px;
+      background: #e8f5ff;
+      border-left: 4px solid #0d6efd;
+    }
+    .status {
+      margin-bottom: 8px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .status.connected { background:#d4edda;color:#155724 }
+    .status.disconnected { background:#f8d7da;color:#721c24 }
+    .status.connecting { background:#fff3cd;color:#856404 }
+
+    .teams-grid {
+      display:grid;
+      grid-template-columns:1fr;
+      gap:8px;
+      margin-bottom:16px;
+    }
+    .team-card {
+      padding:8px;
+      border-radius:6px;
+      border:2px solid #dee2e6;
+      cursor:pointer;
+      transition:all 0.2s;
+      background:#fff;
+    }
+    .team-name {
+      font-size:16px;
+      font-weight:600;
+      margin-bottom:4px;
+    }
+    .team-score {
+      font-size:16px;
+      font-weight:bold;
+      color:#007bff;
+    }
+    .team-players {
+      font-size:11px;
+      color:#6c757d;
+      margin-top:4px;
+    }
+    .team-card:hover { border-color:#007bff;box-shadow:0 2px 4px rgba(0,123,255,0.2) }
+    .team-card.active { border-color:#28a745;background:#f8fff9 }
+    .team-card.answering {
+      background:#d4edda;
+      border-color:#28a745;
+      animation:pulse 1s infinite;
+    }
+
+    .modal {
+      position:fixed;
+      top:0;
+      left:0;
+      width:100%;
+      height:100%;
+      background:rgba(0,0,0,0.5);
+      z-index:1000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .modal-content {
+      background:white;
+      border-radius:8px;
+      padding:0;
+      max-width:300px;
+      width:90%;
+      box-shadow:0 4px 20px rgba(0,0,0,0.3);
+      animation:slideIn 0.3s ease-out;
+    }
+    .modal-header {
+      padding:20px;
+      border-bottom:1px solid #dee2e6;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .modal-header h3 { margin:0;color:#333 }
+    .close-btn {
+      background:none;
+      border:none;
+      font-size:24px;
+      cursor:pointer;
+      color:#999;
+      padding:0;
+      width:30px;
+      height:30px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .close-btn:hover { color:#333 }
+    .modal-body {
+      padding:20px;
+      text-align:center;
+    }
+    .answering-team {
+      font-size:24px;
+      font-weight:bold;
+      padding:20px;
+      border-radius:6px;
+      background:#f8f9fa;
+    }
+    .answering-team.hardware-button {
+      color:white;
+      font-size:28px;
+      padding:30px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.7} }
+    @keyframes slideIn { from{transform:scale(0.9);opacity:0}to{transform:scale(1);opacity:1} }
+
+    table { border-collapse:collapse;width:100% }
+    th,td { border:1px solid #ddd;padding:6px 8px }
+    thead th { position:sticky;top:0;background:#f5f5f5 }
+    .first { font-weight:600;background:#e8f5e8 }
+    .fs { color:#c00 }
+    .hidden { display:none }
   </style>
 </head>
 <body>
@@ -91,13 +217,14 @@
   const $answerModal = document.getElementById('answer-modal');
   const $answeringTeam = document.getElementById('answering-team');
   const $closeModal = document.getElementById('close-modal');
+  const $controls = document.querySelector('.controls');
 
-  // Initialize room from URL parameter
+  // Initialize room from URL parameter (приоритет URL)
   const urlParams = new URLSearchParams(location.search);
   const urlRoom = urlParams.get('room');
   if (urlRoom) {
     $roomInput.value = urlRoom;
-    room = urlRoom; 
+    room = urlRoom;
   }
 
   function connect() {
@@ -149,6 +276,10 @@
           
           if (msg.type === 'state') { 
             state = { ...state, ...msg.data };
+            // Обновляем firstAnswerer из состояния если он есть
+            if (msg.data && msg.data.firstAnswerer) {
+              state.firstAnswerer = msg.data.firstAnswerer;
+            }
             renderTeams();
             updateBannerVisibility();
           }
@@ -159,12 +290,42 @@
           if (msg.type === 'answer_received') {
             // Показать модалку при нажатии физической кнопки
             if (msg.teamId && msg.teamName) {
-              showAnswerModal(msg.teamName);
+              // Это нажатие физической кнопки
+              const teamColor =
+                msg.teamColor ||
+                (state.teams && state.teams[msg.teamId]
+                  ? state.teams[msg.teamId].color
+                  : null) ||
+                '#3b82f6';
+              
+              // Обновляем состояние firstAnswerer для визуального выделения
+              state.firstAnswerer = `team_${msg.teamId}`;
+              
+              // Показываем popup с информацией о команде
+              showAnswerModal(msg.teamName, teamColor, true);
+              
+              // Перерисовываем команды для выделения
+              renderTeams();
+              
+              // Показываем баннер
+              $firstTeam.textContent = msg.teamName;
+              $banner.classList.remove('hidden');
+            } else if (msg.userId) {
+              // Обычный ответ игрока - обновляем состояние
+              state.firstAnswerer = msg.userId;
+              renderTeams();
+              updateBannerVisibility();
             }
           }
           if (msg.type === 'phase') {
             state.phase = msg.data.phase;
             state.enableAt = msg.data.enableAt;
+            // Сбрасываем firstAnswerer при смене фазы (новая попытка)
+            if (msg.data.phase === 'started' || msg.data.phase === 'lobby') {
+              state.firstAnswerer = null;
+              $banner.classList.add('hidden');
+              hideAnswerModal();
+            }
             renderTeams();
             updateBannerVisibility();
           }
@@ -243,15 +404,19 @@
     // Sort teams by score (descending)
     teams.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-    const teamCards = teams.map((team, index) => {
+    const teamCards = teams.map((team) => {
       const players = Object.values(state.players || {})
         .filter(p => team.players.includes(p.userId || p.id))
         .map(p => p.name || p.userId);
       
-      const isAnswering = state.firstAnswerer && team.players.includes(state.firstAnswerer);
+      // Проверяем, отвечает ли эта команда (либо игрок команды, либо физическая кнопка команды)
+      const isTeamAnswering = state.firstAnswerer && (
+        team.players.includes(state.firstAnswerer) || 
+        state.firstAnswerer === `team_${team.id}`
+      );
       
       return `
-        <div class="team-card ${isAnswering ? 'answering' : ''}" data-team-id="${team.id}" data-team-name="${team.name}">
+        <div class="team-card ${isTeamAnswering ? 'answering' : ''}" data-team-id="${team.id}" data-team-name="${team.name}">
           <div class="team-name" style="color: ${team.color}">${team.name}</div>
           <div class="team-score">${team.score || 0} очков</div>
           <div class="team-players">Игроки: ${players.join(', ') || 'Нет игроков'}</div>
@@ -270,8 +435,30 @@
     });
   }
 
-  function showAnswerModal(teamName) {
+  function showAnswerModal(teamName, teamColor = null, isHardwareButton = false) {
     $answeringTeam.textContent = teamName;
+    
+    // Если это физическая кнопка, показываем с цветом команды
+    if (isHardwareButton && teamColor) {
+      $answeringTeam.classList.add('hardware-button');
+      $answeringTeam.style.backgroundColor = teamColor;
+      $answeringTeam.innerHTML = `🔘<br>${teamName}`;
+      // Обновляем заголовок модалки
+      const modalHeader = $answerModal.querySelector('.modal-header h3');
+      if (modalHeader) {
+        modalHeader.textContent = 'Нажата физическая кнопка!';
+      }
+    } else {
+      $answeringTeam.classList.remove('hardware-button');
+      $answeringTeam.style.backgroundColor = '';
+      $answeringTeam.textContent = teamName;
+      // Возвращаем стандартный заголовок
+      const modalHeader = $answerModal.querySelector('.modal-header h3');
+      if (modalHeader) {
+        modalHeader.textContent = 'Отвечает команда';
+      }
+    }
+    
     $answerModal.classList.remove('hidden');
   }
 
@@ -283,6 +470,10 @@
     // Скрываем баннер при смене фазы игры или отсутствии первого ответчика
     if (state.phase !== 'active' || !state.firstAnswerer) {
       $banner.classList.add('hidden');
+    }
+    // Также скрываем модалку если фаза изменилась и не активна
+    if (state.phase !== 'active') {
+      hideAnswerModal();
     }
   }
 
@@ -310,6 +501,27 @@
 
   Office.onReady(() => {
     console.log('Office.js ready');
+    
+    // Если комнаты в URL нет - пробуем взять из настроек документа
+    if (!room) {
+      try {
+        const savedRoom = Office.context.document.settings.get('quizRoomCode');
+        if (savedRoom) {
+          room = savedRoom;
+          $roomInput.value = savedRoom;
+          // Скрываем форму, чтобы зрители не видели технические поля
+          if ($controls) {
+            $controls.classList.add('hidden');
+          }
+          connect();
+        } else {
+          $status.textContent = 'Откройте панель ведущего и создайте/подключите игру';
+          $status.className = 'status disconnected';
+        }
+      } catch (err) {
+        console.error('Error reading document settings:', err);
+      }
+    }
   });
 })();
 </script>
