@@ -123,11 +123,17 @@ type Event struct {
 
 // Client represents a WebSocket connection
 type Client struct {
-	Conn   *websocket.Conn
-	Send   chan []byte
-	RoomID string
-	UserID string
-	Role   string // "host" or "viewer"
+	Conn     *websocket.Conn
+	Send     chan []byte
+	RoomID   string
+	UserID   string
+	Role     string // "host" or "viewer"
+	closeOnce sync.Once
+}
+
+// CloseSend closes the Send channel exactly once (avoids double-close panic)
+func (c *Client) CloseSend() {
+	c.closeOnce.Do(func() { close(c.Send) })
 }
 
 // Hub manages all rooms and clients

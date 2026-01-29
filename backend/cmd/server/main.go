@@ -42,6 +42,7 @@ func main() {
 	buttonService := services.NewButtonService(db.DB)
 	wsService.SetButtonService(buttonService)
 	go wsService.Run()
+	wsService.StartRoomCleanup()
 
 	// Initialize presentation store
 	presentationStore, err := services.NewPresentationStore(dataPath)

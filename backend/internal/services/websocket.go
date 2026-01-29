@@ -79,7 +79,7 @@ func (ws *WebSocketService) Run() {
 		case client := <-ws.hub.Unregister:
 			if _, ok := ws.hub.Clients[client]; ok {
 				delete(ws.hub.Clients, client)
-				close(client.Send)
+				client.CloseSend()
 				log.Printf("Client disconnected: %s", client.UserID)
 			}
 
@@ -88,7 +88,7 @@ func (ws *WebSocketService) Run() {
 				select {
 				case client.Send <- message:
 				default:
-					close(client.Send)
+					client.CloseSend()
 					delete(ws.hub.Clients, client)
 				}
 			}
@@ -132,18 +132,8 @@ func (ws *WebSocketService) HandleEvent(client *models.Client, event models.Even
 			log.Printf("Room not found for event %s: roomID=%s, client.RoomID=%s", event.Type, roomID, client.RoomID)
 		}
 		room = nil
-	} else if !exists {
-		// Only create room for create_room events
-		room = &models.Room{
-			ID:        roomID,
-			Code:      roomID, // Set Code same as ID for new rooms
-			Phase:     models.PhaseLobby,
-			Players:   make(map[string]*models.Player),
-			Teams:     make(map[string]*models.Team),
-			CreatedAt: time.Now(),
-		}
-		ws.hub.Rooms[roomID] = room
 	}
+	// For EventCreateRoom we do not create room here; handleCreateRoom creates it with a new code
 
 	switch event.Type {
 	case models.EventCreateRoom:
@@ -253,6 +243,7 @@ func (ws *WebSocketService) handleJoin(client *models.Client, room *models.Room,
 	room.Players[event.UserID] = player
 	client.UserID = event.UserID
 	client.RoomID = room.Code
+	room.LastActivity = time.Now()
 	log.Printf("Player %s joined room %s", event.UserID, room.Code)
 
 	// Send success response with specific event type
@@ -306,6 +297,7 @@ func (ws *WebSocketService) handleClick(client *models.Client, room *models.Room
 		}
 	}
 
+	room.LastActivity = time.Now()
 	log.Printf("Player %s clicked (total: %d, false starts: %d)",
 		event.UserID, player.ClickCount, player.FalseStarts)
 	ws.broadcastRoomState(room)
@@ -390,6 +382,7 @@ func (ws *WebSocketService) handleHostSetState(client *models.Client, room *mode
 		ws.broadcastToRoom(room, phaseChangedEvent)
 	}
 
+	room.LastActivity = time.Now()
 	log.Printf("Room %s phase changed to %s by admin", room.ID, event.Phase)
 	ws.broadcastRoomState(room)
 }
@@ -413,7 +406,7 @@ func (ws *WebSocketService) broadcastRoomState(room *models.Room) {
 			select {
 			case client.Send <- message:
 			default:
-				close(client.Send)
+				client.CloseSend()
 				delete(ws.hub.Clients, client)
 			}
 		}
@@ -434,7 +427,7 @@ func (ws *WebSocketService) broadcastToRoom(room *models.Room, event models.Even
 			select {
 			case client.Send <- message:
 			default:
-				close(client.Send)
+				client.CloseSend()
 				delete(ws.hub.Clients, client)
 			}
 		}
@@ -446,13 +439,15 @@ func (ws *WebSocketService) handleCreateRoom(client *models.Client, event models
 	roomCode := generateRoomCode()
 	adminPassword := generateAdminPassword()
 
+	now := time.Now()
 	room := &models.Room{
-		ID:            fmt.Sprintf("room_%d", time.Now().Unix()),
+		ID:            fmt.Sprintf("room_%d", now.Unix()),
 		Code:          roomCode,
 		Phase:         models.PhaseLobby,
 		Players:       make(map[string]*models.Player),
 		Teams:         make(map[string]*models.Team),
-		CreatedAt:     time.Now(),
+		CreatedAt:     now,
+		LastActivity:  now,
 		AdminPassword: adminPassword,
 	}
 
@@ -484,6 +479,7 @@ func (ws *WebSocketService) handleAdminAuth(client *models.Client, room *models.
 
 	client.RoomID = event.RoomCode
 	client.Role = "admin"
+	room.LastActivity = time.Now()
 
 	log.Printf("Admin authenticated for room: %s", event.RoomCode)
 	ws.broadcastRoomState(room)
@@ -534,6 +530,7 @@ func (ws *WebSocketService) handleJoinTeam(client *models.Client, room *models.R
 		return
 	}
 
+	room.LastActivity = time.Now()
 	ws.broadcastRoomState(room)
 }
 
@@ -558,6 +555,7 @@ func (ws *WebSocketService) handleCreateTeam(client *models.Client, room *models
 	}
 
 	room.Teams[teamID] = team
+	room.LastActivity = time.Now()
 	log.Printf("Team created: %s (%s)", event.TeamName, teamID)
 
 	// Send team created event to all clients in the room
@@ -585,7 +583,7 @@ func (ws *WebSocketService) sendEventToClient(client *models.Client, event model
 	select {
 	case client.Send <- message:
 	default:
-		close(client.Send)
+		client.CloseSend()
 		delete(ws.hub.Clients, client)
 	}
 }
@@ -663,16 +661,6 @@ func GetUpgrader() websocket.Upgrader {
 	}
 }
 
-// updateRoomActivity updates the last activity timestamp for a room
-func (ws *WebSocketService) updateRoomActivity(room *models.Room) {
-	if room != nil {
-		room.Mu.Lock()
-		room.LastActivity = time.Now()
-		room.Mu.Unlock()
-		log.Printf("Updated activity for room %s", room.Code)
-	}
-}
-
 // cleanupInactiveRooms removes rooms that haven't been active for more than 1 hour
 func (ws *WebSocketService) cleanupInactiveRooms() {
 	ws.hub.Mu.Lock()
@@ -684,6 +672,9 @@ func (ws *WebSocketService) cleanupInactiveRooms() {
 	for roomCode, room := range ws.hub.Rooms {
 		room.Mu.RLock()
 		lastActivity := room.LastActivity
+		if lastActivity.IsZero() {
+			lastActivity = room.CreatedAt
+		}
 		room.Mu.RUnlock()
 
 		if lastActivity.Before(cutoffTime) {
@@ -716,6 +707,7 @@ func (ws *WebSocketService) handleStartQuestion(client *models.Client, room *mod
 	room.FirstAnswerer = ""
 	room.QuestionStartTime = time.Now()
 
+	room.LastActivity = time.Now()
 	log.Printf("Question started in room %s", room.Code)
 
 	// Broadcast question start to all clients
@@ -745,6 +737,7 @@ func (ws *WebSocketService) handleAnswerReceived(client *models.Client, room *mo
 	room.FirstAnswerer = event.UserID
 	room.QuestionActive = false // Stop accepting more answers
 
+	room.LastActivity = time.Now()
 	log.Printf("First answer received from %s", event.UserID)
 
 	// Broadcast answer received event
@@ -807,6 +800,7 @@ func (ws *WebSocketService) handleAnswerConfirmation(client *models.Client, room
 	room.QuestionActive = false
 	room.FirstAnswerer = ""
 
+	room.LastActivity = time.Now()
 	log.Printf("Answer confirmed: correct=%v, points=%d", event.IsCorrect, event.Points)
 
 	// Broadcast confirmation event
@@ -830,6 +824,7 @@ func (ws *WebSocketService) handleShowAnswer(client *models.Client, room *models
 		return
 	}
 
+	room.LastActivity = time.Now()
 	log.Printf("Showing answer in room %s", room.Code)
 
 	// Broadcast show answer event
@@ -854,6 +849,7 @@ func (ws *WebSocketService) handleNextQuestion(client *models.Client, room *mode
 	room.FirstAnswerer = ""
 	room.CorrectAnswer = ""
 	room.QuestionStartTime = time.Time{}
+	room.LastActivity = time.Now()
 
 	log.Printf("Next question in room %s", room.Code)
 

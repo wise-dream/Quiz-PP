@@ -7,6 +7,7 @@
 ## Now / Next
 - Готово: удалены deploy.sh, debug-websocket.sh, test-connection.html, quiz-server-https, QUICKSTART.md.
 - Готово: DEPLOYMENT.md — короткая пошаговая инструкция (systemd + nginx).
+- Готово: исправлена утечка памяти по комнатам и двойное закрытие client.Send (см. Decisions).
 - Актуально: развёртывание по DEPLOYMENT.md.
 
 ## Open questions
@@ -16,3 +17,5 @@
 - Бэкенд за nginx: порт 3009, без TLS (TLS на nginx при необходимости).
 - Фронтенд: статика из `frontend/build`, раздача через nginx.
 - Скрипт deploy.sh удалён; единственный источник — команды в DEPLOYMENT.md.
+- Комнаты: очистка неактивных комнат каждые 30 мин (1 ч без активности); LastActivity обновляется при действиях в комнате; при create_room комната создаётся только в handleCreateRoom (без дубликата по roomID).
+- Клиенты: закрытие канала Send только через Client.CloseSend() (sync.Once), чтобы избежать panic при двойном закрытии.
