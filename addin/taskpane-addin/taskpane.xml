@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="TaskPaneApp">
+  <Id>87654321-4321-4321-4321-210987654321</Id>
+  <Version>1.0.0.1</Version>
+  <ProviderName>WiseDream</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+
+  <DisplayName DefaultValue="Quiz Host Panel"/>
+  <Description DefaultValue="Control quiz phases &amp; timers"/>
+  <IconUrl DefaultValue="https://wise-dream.ru/quiz/addin/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://wise-dream.ru/quiz/addin/icon-128.png"/>
+  <SupportUrl DefaultValue="https://wise-dream.ru/help"/>
+
+  <AppDomains>
+    <AppDomain>https://wise-dream.ru</AppDomain>
+    <AppDomain>https://appsforoffice.microsoft.com</AppDomain>
+  </AppDomains>
+
+  <Hosts>
+    <Host Name="PowerPoint"/>
+  </Hosts>
+
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://wise-dream.ru/quiz/addin/taskpane.html"/>
+  </DefaultSettings>
+
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <!-- Ribbon-команда на вкладке Home -->
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Presentation">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Desc"/>
+            <LearnMoreUrl resid="Support.Url"/>
+          </GetStarted>
+
+          <!-- Требуется даже для ShowTaskpane -->
+          <FunctionFile resid="Functions.Url"/>
+
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="Quiz.Group" label="Quiz">
+                <Label resid="Group.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16"/>
+                  <bt:Image size="32" resid="Icon.32"/>
+                  <bt:Image size="80" resid="Icon.80"/>
+                </Icon>
+
+                <Control xsi:type="Button" id="Quiz.Button.Open">
+                  <Label resid="Button.Open.Label"/>
+                  <Supertip>
+                    <Title resid="Button.Open.Label"/>
+                    <Description resid="Button.Open.Tip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="Taskpane.Url"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16" DefaultValue="https://wise-dream.ru/quiz/addin/icon-16.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://wise-dream.ru/quiz/addin/icon-32.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://wise-dream.ru/quiz/addin/icon-80.png"/>
+      </bt:Images>
+
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://wise-dream.ru/quiz/addin/taskpane.html"/>
+        <bt:Url id="Functions.Url" DefaultValue="https://wise-dream.ru/quiz/addin/commands.html"/>
+        <bt:Url id="Support.Url" DefaultValue="https://wise-dream.ru/help"/>
+      </bt:Urls>
+
+      <bt:ShortStrings>
+        <bt:String id="Group.Label" DefaultValue="Quiz"/>
+        <bt:String id="Button.Open.Label" DefaultValue="Open Quiz Panel"/>
+        <bt:String id="GetStarted.Title" DefaultValue="Quiz Host Panel"/>
+      </bt:ShortStrings>
+
+      <bt:LongStrings>
+        <bt:String id="Button.Open.Tip" DefaultValue="Open the quiz host control panel"/>
+        <bt:String id="GetStarted.Desc" DefaultValue="Control quiz phases &amp; timers."/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

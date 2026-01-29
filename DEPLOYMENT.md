@@ -1,185 +1,123 @@
-# 🚀 Руководство по развертыванию PowerPoint Quiz
+# Развёртывание PowerPoint Quiz (Linux)
 
-> **Этот файл содержит полную информацию о развертывании проекта.**
+Краткая инструкция: бэкенд как systemd-сервис на порту **3009**, фронтенд через **nginx**.
 
-## 📋 Варианты развертывания
+---
 
-### 1. Простое развертывание (рекомендуется для начала)
+## 1. Подготовка сервера
+
 ```bash
-# Генерация SSL сертификатов
-./generate-certs.sh
-
-# Запуск только бэкенда и фронтенда
-docker-compose up -d backend frontend
-```
-
-**Доступ:**
-- Frontend: `http://your-server-ip`
-- Backend: `https://your-server-ip:443`
-- WebSocket: `wss://your-server-ip:443/ws`
-
-### 2. Полное развертывание с Nginx (продакшен)
-```bash
-# Генерация SSL сертификатов для nginx
-./generate-nginx-certs.sh
-
-# Запуск полного стека
-docker-compose --profile production up -d
-```
-
-**Доступ:**
-- Frontend: `https://your-server-ip:8443`
-- Backend: `https://your-server-ip:8443/api/`
-- WebSocket: `wss://your-server-ip:8443/ws`
-
-## 🔧 Настройка сервера
-
-### 1. Подготовка сервера
-```bash
-# Обновление системы
 sudo apt update && sudo apt upgrade -y
-
-# Установка Docker и Docker Compose
-sudo apt install docker.io docker-compose -y
-
-# Добавление пользователя в группу docker
-sudo usermod -aG docker $USER
-
-# Перезагрузка для применения изменений
-sudo reboot
+sudo apt install -y nginx build-essential
 ```
 
-### 2. Настройка файрвола
-```bash
-# Установка UFW
-sudo apt install ufw -y
+---
 
-# Настройка правил
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 80/tcp    # HTTP
-sudo ufw allow 443/tcp   # HTTPS
-sudo ufw allow 8080/tcp  # Nginx HTTP (если используете)
-sudo ufw allow 8443/tcp  # Nginx HTTPS (если используете)
+## 2. Бэкенд (Go, порт 3009)
 
-# Включение файрвола
-sudo ufw enable
-```
-
-### 3. Развертывание приложения
-```bash
-# Клонирование проекта
-git clone <your-repository-url>
-cd "PowerPoint Quiz"
-
-# Простое развертывание
-./generate-certs.sh
-docker-compose up -d backend frontend
-
-# Или полное развертывание
-./generate-nginx-certs.sh
-docker-compose --profile production up -d
-```
-
-## 🔒 HTTPS без домена
-
-### Самоподписанные сертификаты
-Да, вы можете использовать HTTPS без домена! Система автоматически генерирует самоподписанные сертификаты:
+### Сборка
 
 ```bash
-# Для простого развертывания
-./generate-certs.sh
-
-# Для полного развертывания с nginx
-./generate-nginx-certs.sh
+cd /path/to/Quiz-PP/backend
+go build -o quiz-backend ./cmd/server
 ```
 
-### Использование с IP адресом
-- **Frontend**: `https://your-server-ip` (с предупреждением браузера)
-- **WebSocket**: `wss://your-server-ip:443/ws`
+### Каталог и данные
 
-### Обход предупреждений браузера
-1. Откройте `https://your-server-ip` в браузере
-2. Нажмите "Дополнительно" → "Перейти на сайт (небезопасно)"
-3. Или добавьте исключение для самоподписанного сертификата
-
-## 🌐 Настройка с доменом (опционально)
-
-### 1. Получение SSL сертификатов от Let's Encrypt
 ```bash
-# Установка Certbot
-sudo apt install certbot -y
-
-# Получение сертификата
-sudo certbot certonly --standalone -d your-domain.com
-
-# Копирование сертификатов
-sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem nginx/ssl/cert.pem
-sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem nginx/ssl/key.pem
-sudo chown $USER:$USER nginx/ssl/*.pem
+sudo mkdir -p /srv/quiz/data
+sudo chown "$USER:$USER" /srv/quiz/data
 ```
 
-### 2. Обновление nginx конфигурации
+### Unit-файл systemd
+
+Создайте `/etc/systemd/system/quiz-backend.service`:
+
+```ini
+[Unit]
+Description=PowerPoint Quiz Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/quiz
+ExecStart=/srv/quiz/quiz-backend
+Restart=always
+RestartSec=5
+Environment=PORT=3009
+Environment=HOST=127.0.0.1
+Environment=TLS_ENABLED=false
+Environment=DB_PATH=/srv/quiz/data/quiz.db
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Установка и запуск
+
 ```bash
-# Редактирование nginx.conf
-sudo nano nginx/nginx.conf
-
-# Замена server_name _ на server_name your-domain.com
+sudo cp /path/to/Quiz-PP/backend/quiz-backend /srv/quiz/
+sudo chown www-data:www-data /srv/quiz/quiz-backend
+sudo chmod +x /srv/quiz/quiz-backend
+sudo systemctl daemon-reload
+sudo systemctl enable quiz-backend
+sudo systemctl start quiz-backend
+sudo systemctl status quiz-backend
 ```
 
-## 📊 Мониторинг и управление
+Проверка: `curl -s http://127.0.0.1:3009/health` — должен ответить `healthy`.
 
-### Проверка статуса
+---
+
+## 3. Фронтенд (сборка + nginx)
+
+### Сборка React
+
 ```bash
-# Статус контейнеров
-docker-compose ps
-
-# Логи
-docker-compose logs -f
-
-# Логи конкретного сервиса
-docker-compose logs -f backend
-docker-compose logs -f frontend
+cd /path/to/Quiz-PP/frontend
+npm ci
+npm run build
 ```
 
-### Перезапуск сервисов
+В `frontend/.env.production` задайте URL вашего домена (или IP), например:
+
+```env
+REACT_APP_WS_URL=wss://your-domain/ws
+REACT_APP_API_URL=https://your-domain/api
+```
+
+После изменения `.env.production` пересоберите: `npm run build`.
+
+### Размещение статики
+
 ```bash
-# Перезапуск всех сервисов
-docker-compose restart
-
-# Перезапуск конкретного сервиса
-docker-compose restart backend
+sudo mkdir -p /var/www/quiz
+sudo cp -r /path/to/Quiz-PP/frontend/build/* /var/www/quiz/
+sudo chown -R www-data:www-data /var/www/quiz
 ```
 
-### Обновление приложения
-```bash
-# Остановка сервисов
-docker-compose down
+---
 
-# Обновление кода
-git pull
+## 4. Nginx (прокси к бэкенду и раздача фронта)
 
-# Пересборка и запуск
-docker-compose up -d --build
-```
+Создайте конфиг, например `/etc/nginx/sites-available/quiz`:
 
-## 🔧 Настройка Nginx на хосте (альтернатива)
-
-Если вы хотите использовать nginx на хосте вместо Docker:
-
-### 1. Установка nginx
-```bash
-sudo apt install nginx -y
-```
-
-### 2. Конфигурация
 ```nginx
-# /etc/nginx/sites-available/powerpoint-quiz
 server {
     listen 80;
-    server_name your-domain.com;
+    server_name _;
+
+    root /var/www/quiz;
+    index index.html;
 
     location / {
-        proxy_pass http://localhost:80;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:3009;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -187,94 +125,65 @@ server {
     }
 
     location /ws {
-        proxy_pass https://localhost:443;
+        proxy_pass http://127.0.0.1:3009;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
-        proxy_ssl_verify off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+
+    location /addin/ {
+        proxy_pass http://127.0.0.1:3009/addin/;
+        proxy_set_header Host $host;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
     }
 }
 ```
 
-### 3. Активация
+Включите сайт и перезагрузите nginx:
+
 ```bash
-sudo ln -s /etc/nginx/sites-available/powerpoint-quiz /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/quiz /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-## 🚨 Решение проблем
+---
 
-### Проблема: Контейнеры не запускаются
+## 5. Полезные команды
+
+| Действие | Команда |
+|----------|--------|
+| Статус бэкенда | `sudo systemctl status quiz-backend` |
+| Логи бэкенда | `sudo journalctl -u quiz-backend -f` |
+| Перезапуск бэкенда | `sudo systemctl restart quiz-backend` |
+| Проверка nginx | `sudo nginx -t` |
+| Перезагрузка nginx | `sudo systemctl reload nginx` |
+| Обновление фронта | `cd frontend && npm run build && sudo cp -r build/* /var/www/quiz/` |
+| Обновление бэкенда | пересобрать бинарник, скопировать в `/srv/quiz/`, `sudo systemctl restart quiz-backend` |
+
+---
+
+## 6. Файрвол (по желанию)
+
 ```bash
-# Проверка логов
-docker-compose logs
-
-# Проверка портов
-sudo netstat -tlnp | grep :80
-sudo netstat -tlnp | grep :443
-```
-
-### Проблема: SSL ошибки
-```bash
-# Проверка сертификатов
-openssl x509 -in certs/cert.pem -text -noout
-
-# Перегенерация сертификатов
-./generate-certs.sh
-```
-
-### Проблема: WebSocket не работает
-```bash
-# Проверка nginx конфигурации
-docker-compose exec nginx nginx -t
-
-# Проверка проксирования
-curl -I https://your-server-ip/ws
-```
-
-### Проблема: Файрвол блокирует
-```bash
-# Проверка статуса UFW
-sudo ufw status
-
-# Открытие портов
+sudo ufw allow 22/tcp
 sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
+sudo ufw enable
 ```
 
-## 📈 Масштабирование
+---
 
-### Горизонтальное масштабирование
-```yaml
-# В docker-compose.yml
-services:
-  backend:
-    deploy:
-      replicas: 3
-  frontend:
-    deploy:
-      replicas: 2
-```
+## Итог
 
-### Load Balancer
-```nginx
-upstream backend {
-    server backend1:443;
-    server backend2:443;
-    server backend3:443;
-}
-```
-
-## 🎯 Готово!
-
-После выполнения этих шагов у вас будет:
-- ✅ **HTTPS сервер** с самоподписанными сертификатами
-- ✅ **React фронтенд** на порту 80
-- ✅ **Go бэкенд** на порту 443
-- ✅ **WebSocket** для реального времени
-- ✅ **Nginx** для продакшена (опционально)
-- ✅ **Мониторинг** и health checks
-
-Система готова к использованию! 🎉
+- Бэкенд: systemd-сервис `quiz-backend`, слушает **127.0.0.1:3009**, без TLS.
+- Фронтенд: статика в `/var/www/quiz`, раздаётся nginx.
+- Nginx: проксирует `/api/`, `/ws`, `/addin/` на `http://127.0.0.1:3009`.
+- Доступ: `http://IP-сервера` или `http://your-domain` (при необходимости настройте SSL в nginx и `server_name`).

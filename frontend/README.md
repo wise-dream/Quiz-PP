@@ -150,29 +150,9 @@ export const teamColors = [
 
 ## 🚀 Развертывание
 
-### Docker (рекомендуется):
-```bash
-# Из корневой директории проекта
-docker-compose up -d frontend
+Полная инструкция по развёртыванию (systemd для бэкенда, nginx для фронтенда): **[../DEPLOYMENT.md](../DEPLOYMENT.md)**.
 
-# Или сборка образа
-cd frontend
-docker build -t powerpoint-quiz-frontend .
-docker run -p 80:80 powerpoint-quiz-frontend
-```
-
-### Nginx:
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        root /var/www/powerpoint-quiz-frontend/build;
-        try_files $uri $uri/ /index.html;
-    }
-}
-```
+Кратко: `npm run build` → копировать `build/` в `/var/www/quiz`, nginx раздаёт статику и проксирует `/api/` и `/ws` на бэкенд (порт 3009).
 
 ## 🤝 Разработка
 

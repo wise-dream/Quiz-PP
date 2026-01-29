@@ -2,14 +2,9 @@
 
 ## 🚀 Быстрый старт
 
-### Автоматическое развертывание (рекомендуется)
+### Развёртывание на сервере
 
-```bash
-# Запустите автоматический скрипт развертывания
-./deploy.sh
-```
-
-Подробная информация: см. [DEPLOYMENT.md](DEPLOYMENT.md)
+Пошаговые команды: см. [DEPLOYMENT.md](DEPLOYMENT.md) (systemd для бэкенда, nginx для фронтенда).
 
 ### Ручной запуск для разработчиков
 
@@ -147,6 +142,6 @@ npm start
 
 - **[README.md](README.md)** - Общая информация о проекте
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Подробное руководство по развертыванию (ОСНОВНОЙ ФАЙЛ ДЛЯ РАЗВЕРТЫВАНИЯ)
-- **[QUICKSTART.md](QUICKSTART.md)** - Быстрый старт для разработчиков
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Развёртывание на Linux (systemd + nginx)
 - **[frontend/README.md](frontend/README.md)** - Документация фронтенда
 - **[addin/README.md](addin/README.md)** - Документация PowerPoint аддинов

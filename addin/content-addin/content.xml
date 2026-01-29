@@ -20,9 +20,11 @@
   <DefaultSettings>
     <SourceLocation DefaultValue="https://wise-dream.ru/quiz/addin/content.html"/>
 
+    <!-- Просим размер “под весь слайд” -->
     <RequestedWidth>960</RequestedWidth>
     <RequestedHeight>540</RequestedHeight>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>
+
