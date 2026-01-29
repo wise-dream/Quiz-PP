@@ -7,12 +7,12 @@
 
   <DisplayName DefaultValue="Quiz Host Panel"/>
   <Description DefaultValue="Control quiz phases &amp; timers"/>
-  <IconUrl DefaultValue="https://wise-dream.ru/quiz/addin/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://wise-dream.ru/quiz/addin/icon-128.png"/>
-  <SupportUrl DefaultValue="https://wise-dream.ru/help"/>
+  <IconUrl DefaultValue="https://quiz.wise-dream.ru/quiz/addin/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://quiz.wise-dream.ru/quiz/addin/icon-128.png"/>
+  <SupportUrl DefaultValue="https://quiz.wise-dream.ru/help"/>
 
   <AppDomains>
-    <AppDomain>https://wise-dream.ru</AppDomain>
+    <AppDomain>https://quiz.wise-dream.ru</AppDomain>
     <AppDomain>https://appsforoffice.microsoft.com</AppDomain>
   </AppDomains>
 
@@ -21,7 +21,7 @@
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://wise-dream.ru/quiz/addin/taskpane.html"/>
+    <SourceLocation DefaultValue="https://quiz.wise-dream.ru/quiz/addin/taskpane.html"/>
   </DefaultSettings>
 
   <Permissions>ReadWriteDocument</Permissions>
@@ -74,15 +74,15 @@
 
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16" DefaultValue="https://wise-dream.ru/quiz/addin/icon-16.png"/>
-        <bt:Image id="Icon.32" DefaultValue="https://wise-dream.ru/quiz/addin/icon-32.png"/>
-        <bt:Image id="Icon.80" DefaultValue="https://wise-dream.ru/quiz/addin/icon-80.png"/>
+        <bt:Image id="Icon.16" DefaultValue="https://quiz.wise-dream.ru/quiz/addin/icon-16.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://quiz.wise-dream.ru/quiz/addin/icon-32.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://quiz.wise-dream.ru/quiz/addin/icon-80.png"/>
       </bt:Images>
 
       <bt:Urls>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://wise-dream.ru/quiz/addin/taskpane.html"/>
-        <bt:Url id="Functions.Url" DefaultValue="https://wise-dream.ru/quiz/addin/commands.html"/>
-        <bt:Url id="Support.Url" DefaultValue="https://wise-dream.ru/help"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://quiz.wise-dream.ru/quiz/addin/taskpane.html"/>
+        <bt:Url id="Functions.Url" DefaultValue="https://quiz.wise-dream.ru/quiz/addin/commands.html"/>
+        <bt:Url id="Support.Url" DefaultValue="https://quiz.wise-dream.ru/help"/>
       </bt:Urls>
 
       <bt:ShortStrings>

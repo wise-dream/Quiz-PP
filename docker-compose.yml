@@ -11,7 +11,7 @@ services:
       - HOST=0.0.0.0
       - TLS_ENABLED=false
       - WS_ADDR=:8081
-      - WS_ALLOWED_ORIGINS=https://wise-dream.ru,https://www.wise-dream.ru,http://localhost:3000,http://127.0.0.1:3000
+      - WS_ALLOWED_ORIGINS=https://quiz.wise-dream.ru,https://www.quiz.wise-dream.ru,http://localhost:3000,http://127.0.0.1:3000
       - LOG_LEVEL=info
       - DB_PATH=/srv/data/quiz.db
     ports:

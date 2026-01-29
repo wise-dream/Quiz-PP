@@ -122,7 +122,7 @@ button/
 
 ```
 === ESP32-C3 Quiz Button ===
-Server URL: https://wise-dream.ru
+Server URL: https://quiz.wise-dream.ru
 Button ID: 1
 MAC Address: AA:BB:CC:DD:EE:FF
 Wi-Fi SSID: WiseDream
@@ -141,7 +141,7 @@ Wi-Fi OK: IP=192.168.1.100 RSSI=-45 dBm
 
 [BUTTON] 🔴 Нажатие кнопки -> отправка на сервер...
 [SEND] MAC: AA:BB:CC:DD:EE:FF, ButtonID: 1
-[SEND] Endpoint: https://wise-dream.ru/api/button/press
+[SEND] Endpoint: https://quiz.wise-dream.ru/api/button/press
 [RESPONSE] HTTP Code: 200
 [RESPONSE] Body: {"success":true,"message":"Button press processed successfully","processed":true}
 [SUCCESS] ✅ Нажатие обработано успешно!

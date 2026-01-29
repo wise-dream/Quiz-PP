@@ -322,7 +322,7 @@
 
   // Get API base URL
   function getApiUrl() {
-    return 'https://wise-dream.ru';
+    return 'https://quiz.wise-dream.ru';
   }
 
   // Button API functions
@@ -452,7 +452,7 @@
     updateStatus('Подключение...', 'connecting');
     
     // Connect without room parameter for creation
-    const url = `wss://wise-dream.ru/quiz/ws?role=host`;
+    const url = `wss://quiz.wise-dream.ru/quiz/ws?role=host`;
     console.log('Connecting to WebSocket:', url);
     
     try {
@@ -573,7 +573,7 @@
     }
 
     if (ws) try { ws.close(); } catch {}
-    const url = `wss://wise-dream.ru/quiz/ws?room=${encodeURIComponent(roomCode)}&role=host`;
+    const url = `wss://quiz.wise-dream.ru/quiz/ws?room=${encodeURIComponent(roomCode)}&role=host`;
     ws = new WebSocket(url);
     
     ws.onopen = () => {

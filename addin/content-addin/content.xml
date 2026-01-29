@@ -10,15 +10,15 @@
   <DisplayName DefaultValue="Quiz Content"/>
   <Description DefaultValue="Live scoreboard on slide"/>
 
-  <IconUrl DefaultValue="https://wise-dream.ru/quiz/addin/icon-32.png"/>
-  <SupportUrl DefaultValue="https://wise-dream.ru/help"/>
+  <IconUrl DefaultValue="https://quiz.wise-dream.ru/quiz/addin/icon-32.png"/>
+  <SupportUrl DefaultValue="https://quiz.wise-dream.ru/help"/>
 
   <Hosts>
     <Host Name="PowerPoint"/>
   </Hosts>
 
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://wise-dream.ru/quiz/addin/content.html"/>
+    <SourceLocation DefaultValue="https://quiz.wise-dream.ru/quiz/addin/content.html"/>
 
     <!-- Просим размер “под весь слайд” -->
     <RequestedWidth>960</RequestedWidth>

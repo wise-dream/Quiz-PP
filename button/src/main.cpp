@@ -7,7 +7,7 @@
 const char* WIFI_SSID = "iPhone (Алексей)";
 const char* WIFI_PASS = "alex0027";
 
-#define SERVER_URL "https://wise-dream.ru/quiz/api/button/press"
+#define SERVER_URL "https://quiz.wise-dream.ru/quiz/api/button/press"
 #define BUTTON_ID  "1"
 
 #define BTN_PIN 5          // GPIO кнопки
